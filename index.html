@@ -1,0 +1,138 @@
+﻿<!doctype html>
+<html itemscope='' itemtype='http://schema.org/SearchResultsPage'	lang='ru'	  >
+<head											  >
+<meta content='text/html; charset=UTF-8'		http-equiv='Content-Type'	 />
+<meta content='ru-RU'					http-equiv='Content-Language'	 />
+<meta content='personal,page'						name='keywords'	 />
+<meta content='Static'							name='googlebot' />
+<meta content='NoIndex,NoArchive'					name='Robots'	 />
+<meta content='http://github.com/Alikberov'				name='Author'	 />
+<meta description='CCCP'								 />
+<meta http-equiv=refresh content='3600'							 />
+<title>CCCP - Common Creative Collection Project</title>
+<link rel=icon type='image/gif' href='index.gif' />
+<script type='text/javascript'>
+function main() {
+	var	storage = null;
+	window.pageStorage = {};
+	document.querySelectorAll("[data-storage]")
+	.forEach(
+	function(elem) {
+		var	data = elem.dataset.storage.match(/([^:]+):([^.]+)\.([^.]+)\.(.*)/);
+		var	bank = data[1];
+		var	method = data[2];
+		var	name = data[3];
+		var	container = data[4].split(/\s+/);
+		var	actions = [];
+		var	first = true;
+		switch(bank) {
+		case "wls":	storage = "localStorage";	break;
+		case "wss":	storage = "sessionStorage";	break;
+		default:	storage = "pageStorage";
+		}
+		if(window[storage] && window[storage][name]) {
+			container
+			.forEach(
+			function(str) {
+				elem[str] = window[storage][(first ? name : name + "_" + str)];
+				first = false;
+			});
+		} else {
+			window[storage][name] = [];
+			window[storage][name] = elem[container];
+		}
+		container
+		.forEach(
+		function(str) {
+			actions
+			.push("window." + storage + "." + (actions.length == 0 ? name : name + "_" + str)
+				+ " = this." + str + ";\r\n"
+				+ "window." + storage + ".focus = this.id"
+			);
+		});
+		method.split(/\//)
+		.forEach(
+		function(str) {
+			elem.addEventListener(str,
+				new Function("", actions.join(";\r\n"))
+			);
+		});
+	});
+	if(storage && window[storage] && window[storage].focus) {
+		elem = document.getElementById(window[storage].focus);
+		if(elem)
+			elem.focus();
+	}
+}
+</script>
+<style>
+body					{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+	background-color:cyan;
+	color		:blue;
+	overflow	:auto;
+}
+.TitleBar				{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+	background-color:WindowFrame;
+	color		:yellow;
+	cursor		:default;
+	width		:100%;
+}
+.TitleBar tr:nth-child(odd)		{
+	background-color:ActiveCaption;
+	font-weight	:normal;
+	text-align	:left;
+}
+.TitleBar tr:nth-child(even)		{
+	background-color:ButtonFace;
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+}
+.TitleBar th				{
+	font-weight	:normal;
+	text-align	:left;
+}
+.TitleBar td				{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+}
+.TitleBar td menu			{
+	padding		:1px 1px 1px 1px;
+	margin		:0em .5em 0em .5em;
+	display		:inline-block;
+}
+.TitleBar td menu:hover			{
+	border		:thin outset;
+	padding		:0px 0px 0px 0px;
+}
+.TitleBar td menu:active		{
+	border		:thin inset;
+}
+.storage				{
+}
+.Controls				{
+	text-align	:right;
+}
+.TitleBar th:nth-child(3)		{
+	text-align	:right;
+}
+.TitleBar th:nth-child(3) button	{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+	background-color:ButtonFace;
+	font-family	:Marlett;
+}
+</style>
+</head>
+<body onload='main()'>
+<table class=TitleBar><tr><th><img src=index.gif /></th>
+<th class=storage tabindex=-1 data-storage='wls:keyup.TITLE.innerHTML' contenteditable=true>CCCP - Common Creative Collection Project</th>
+<th><button tabindex=-1>0</button><button tabindex=-1>2</button><button tabindex=-1>r</button></th></tr>
+<tr><td colspan=3><menu>File</menu><menu>Edit</menu><menu>View</menu><menu>Help</menu></td></tr></table>
+Your Name - <input id=Fio class=storage data-storage='wls:focus/input.FIO.value' value='Mr. Who?'><br />
+Your Bio - <span id=PIO tabindex=-1 data-storage='wls:mouseup.PIO.innerHTML selectionStart selectionEnd' contenteditable=true>empty</span>
+<textarea id=Bio rows=16 cols=80 class=storage data-storage='wls:keyup/mouseup.BIO.value selectionStart selectionEnd'>Judo...</textarea>
+</body>
