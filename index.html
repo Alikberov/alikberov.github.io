@@ -11,8 +11,55 @@
 <meta http-equiv=refresh content='3600'							 />
 <title>CCCP - Common Creative Collection Project</title>
 <link rel=icon type='image/gif' href='index.gif' />
+<link rel=icon type='image/ico' href='index.ico' />
 <script type='text/javascript'>
-function main() {
+Object.defineProperty(HTMLTextAreaElement.prototype, "selectionRow", {
+	enumerable	: true,
+	get		:
+		function() {
+			return {
+				start	:this.value.substr(0, this.selectionStart).split(/\r?\n/).length
+			,	end	:this.value.substr(0, this.selectionEnd).split(/\r?\n/).length
+			}
+		},
+	set		:function(x) {}
+	}
+);
+Object.defineProperty(HTMLTextAreaElement.prototype, "selectionColumn", {
+	enumerable	: true,
+	get		:
+		function() {
+			return {
+				start	:this.value.substr(0, this.selectionStart).split(/\r?\n/).pop().length
+			,	end	:this.value.substr(0, this.selectionEnd).split(/\r?\n/).pop().length
+			}
+		},
+	set		:function(x) {}
+	}
+);
+Object.defineProperty(HTMLTextAreaElement.prototype, "peekRow", {
+	enumerable	: true,
+	get		:
+		function() {
+			var	pos	= this.value.substr(0, this.selectionEnd).split(/\r?\n/).length;
+			return	this.value.split(/\r?\n/)[pos - 1];
+		},
+	set		:function(x) {}
+	}
+);
+Object.defineProperty(HTMLTextAreaElement.prototype, "readRow", {
+	enumerable	: true,
+	get		:
+		function() {
+			var	pos	= this.value.substr(0, this.selectionEnd).split(/\r?\n/).length
+			,	string	= this.value.split(/\r?\n/)[pos - 1];
+			this.selectionEnd += string.length + (this.value.indexOf("\r\n") < 0 ? 1 : 2);
+			return	string;
+		},
+	set		:function(x) {}
+	}
+);
+function init() {
 	var	storage = null;
 	window.pageStorage = {};
 	document.querySelectorAll("[data-storage]")
@@ -24,6 +71,7 @@ function main() {
 		var	name = data[3];
 		var	container = data[4].split(/\s+/);
 		var	actions = [];
+		var	handle, element;
 		var	first = true;
 		switch(bank) {
 		case "wls":	storage = "localStorage";	break;
@@ -39,13 +87,31 @@ function main() {
 			});
 		} else {
 			window[storage][name] = [];
-			window[storage][name] = elem[container];
+			window[storage][name] = elem[container[0]];
 		}
+		window[name] = elem;
 		container
 		.forEach(
 		function(str) {
+			handle = actions.length == 0 ? name : name + "_" + str;
+			element = actions.length == 0 ? "$" : "$" + str;
+			Object.defineProperty(window[name], element, {
+				enumerable	: true,
+				get		: new
+					Function(
+						"",
+						"\t return window." + storage + "." + handle
+					),
+				set		: new
+					Function(
+						"x",
+						"\twindow." + name + "." + str + " = "
+						+ "window." + storage + "." + handle + " = x;"
+					)
+				}
+			);
 			actions
-			.push("window." + storage + "." + (actions.length == 0 ? name : name + "_" + str)
+			.push("window." + storage + "." + handle
 				+ " = this." + str + ";\r\n"
 				+ "window." + storage + ".focus = this.id"
 			);
@@ -64,62 +130,130 @@ function main() {
 			elem.focus();
 	}
 }
+//////////////////////////////////////////////////////////////////////////////
+function main() {
+	setInterval(
+	function() {
+		PAD_row.$ = BIO.selectionRow.start;
+		PAD_column.$ = BIO.selectionColumn.start;
+	}, 100);
+}
 </script>
 <style>
-body					{
+body
+{
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
-	background-color:cyan;
-	color		:blue;
+	background-color:ThreeDFace;
+	color		:WindowText;
 	overflow	:auto;
 }
-.TitleBar				{
+.TitleBar
+{
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
 	background-color:WindowFrame;
-	color		:yellow;
 	cursor		:default;
 	width		:100%;
 }
-.TitleBar tr:nth-child(odd)		{
+.TitleBar tr:nth-child(odd)
+{
 	background-color:ActiveCaption;
+	color		:CaptionText;
 	font-weight	:normal;
 	text-align	:left;
 }
-.TitleBar tr:nth-child(even)		{
-	background-color:ButtonFace;
+.TitleBar tr:nth-child(even)
+{
+	background-color:Menu;
+	color		:MenuText;
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
 }
-.TitleBar th				{
+.TitleBar th
+{
 	font-weight	:normal;
 	text-align	:left;
 }
-.TitleBar td				{
+.TitleBar td
+{
+	background-color:inherit;
+	color		:inherit;
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
 }
-.TitleBar td menu			{
-	padding		:1px 1px 1px 1px;
-	margin		:0em .5em 0em .5em;
+.TitleBar input
+{
+	display		:none;
+}
+.TitleBar label
+{
+	background-color:inherit;
+	color		:inherit;
+}
+.TitleBar label menu
+{
+	background-color:inherit;
+	color		:inherit;
+	border		:none;
+	padding		:1px 9px 1px 9px;
+	margin		:0 0 0 0;
 	display		:inline-block;
 }
-.TitleBar td menu:hover			{
-	border		:thin outset;
+.TitleBar input ~ menu:hover
+{
+	border		:1px outset;
+	padding		:0px 8px 0px 8px;
+}
+.TitleBar input:checked ~ menu:hover
+{
+	border		:1px inset;
+	padding		:0px 8px 0px 8px;
+}
+.TitleBar input:checked ~ menu:active
+{
+	border		:1px inset;
+}
+.TitleBar menu ul
+{
+	background-color:inherit;
+	color		:inherit;
+	position	:absolute;
+	border		:1px outset;
+	display		:none;
+	list-style-type	:none;
+}
+.TitleBar li
+{
+	background-color:inherit;
+	color		:inherit;
+}
+.TitleBar input:checked ~ menu:hover ul
+{
+	background-color:inherit;
+	color		:inherit;
+	display		:block;
 	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
 }
-.TitleBar td menu:active		{
-	border		:thin inset;
+.TitleBar input:checked ~ menu:hover li:hover
+{
+	background-color:Highlight;
+	color		:HighlightText;
 }
-.storage				{
+.storage
+{
 }
-.Controls				{
+.Controls
+{
 	text-align	:right;
 }
-.TitleBar th:nth-child(3)		{
+.TitleBar th:nth-child(3)
+{
 	text-align	:right;
 }
-.TitleBar th:nth-child(3) button	{
+.TitleBar th:nth-child(3) button
+{
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
 	background-color:ButtonFace;
@@ -127,12 +261,62 @@ body					{
 }
 </style>
 </head>
-<body onload='main()'>
-<table class=TitleBar><tr><th><img src=index.gif /></th>
+<body onload='init(); main()'>
+<table class=TitleBar>
+<tr><th><img src=index.gif /></th>
 <th class=storage tabindex=-1 data-storage='wls:keyup.TITLE.innerHTML' contenteditable=true>CCCP - Common Creative Collection Project</th>
 <th><button tabindex=-1>0</button><button tabindex=-1>2</button><button tabindex=-1>r</button></th></tr>
-<tr><td colspan=3><menu>File</menu><menu>Edit</menu><menu>View</menu><menu>Help</menu></td></tr></table>
-Your Name - <input id=Fio class=storage data-storage='wls:focus/input.FIO.value' value='Mr. Who?'><br />
-Your Bio - <span id=PIO tabindex=-1 data-storage='wls:mouseup.PIO.innerHTML selectionStart selectionEnd' contenteditable=true>empty</span>
-<textarea id=Bio rows=16 cols=80 class=storage data-storage='wls:keyup/mouseup.BIO.value selectionStart selectionEnd'>Judo...</textarea>
+<tr><td colspan=3>
+<label><input type=checkbox />
+<menu>File<ul>
+<li onclick='window.localStorage.clear(); window.location=""'>New</li>
+<li>Open</li>
+<li>Close</li>
+</ul>
+</menu><menu>Edit<ul>
+<li>Cut</li>
+<li>Copy</li>
+<li>Paste</li>
+</ul>
+</menu><menu>View<ul>
+<li>Normal</li>
+<li>Extend</li>
+<li>Custom</li>
+</ul></menu><menu>Help<ul>
+<li>Info</li>
+<li>Help</li>
+<li onclick='return false'>About</li>
+</ul></menu>
+</label>
+</td></tr></table>
+Your Name<br />
+<input id=Fio class=storage data-storage='wls:focus/input.FIO.value' value='Mr. Who?'><br />
+Your Bio
+<span id=PIO tabindex=-1 data-storage='wls:mouseup.PIO.innerHTML selectionStart selectionEnd' contenteditable=true>Judo...</span><br />
+<textarea id=Bio rows=16 cols=80 class=storage data-storage='wls:keyup/mouseup.BIO.value selectionStart selectionEnd'>
+Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+Sed felis sapien, vestibulum vel velit non, interdum ornare mauris.
+Proin semper feugiat neque, vitae aliquam turpis eleifend id.
+Nullam sapien risus, suscipit non ante bibendum, rhoncus sodales nulla.
+Nam lectus lectus, tincidunt ut lectus eu, porttitor interdum tellus.
+Donec orci est, fringilla at malesuada id, vulputate sit amet nulla.
+Cras vehicula, purus et varius malesuada, lectus neque venenatis libero, lobortis dictum turpis ligula vel diam.
+Donec at congue purus. Sed interdum dolor non blandit maximus.
+Quisque finibus, turpis id tincidunt tempus, neque nibh eleifend eros, vitae tincidunt ipsum ante ut ligula.
+Proin feugiat urna sit amet risus rhoncus viverra.
+Vestibulum interdum nibh eu nibh maximus convallis.
+Aenean ipsum elit, tincidunt vitae urna in, gravida laoreet odio.
+</textarea><br />
+<button onclick='Linear.$ = Bio.peekRow'>.peekRow</button>
+<span onmouseover='Linear.$ = Bio.readRow'>Row:
+<span class=storage data-storage='wls:load.PAD_row.textContent'>???</span> / Col:
+<span class=storage data-storage='wls:load.PAD_column.textContent'>???</span></span>
+<pre id=Linear rows=12 cols=80 class=storage data-storage='wls:focus.LINES.textContent'>
+<h1>Achtung!</h1>
+<b>Это альфа-тест с использованием локального хранилища.
+Многие из элементов после закрытия страницы будут восстановлены при повторном открытии.
+Очистить хранилище можно в меню: «File -&gt; New»…</b>
+Просто, раньше это было без надобности и я не изучал эту технологию.
+Сейчас - решил несколько поднаверстать…
+</pre>
 </body>
