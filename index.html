@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html itemscope='' itemtype='http://schema.org/SearchResultsPage'	lang='ru'	  >
 <head											  >
 <meta content='text/html; charset=UTF-8'		http-equiv='Content-Type'	 />
@@ -8,10 +8,256 @@
 <meta content='NoIndex,NoArchive'					name='Robots'	 />
 <meta content='http://github.com/Alikberov'				name='Author'	 />
 <meta description='CCCP'								 />
-<meta http-equiv=refresh content='3600'							 />
+<meta http-equiv=refresh content='200'							 />
 <title>CCCP - Common Creative Collection Project</title>
 <link rel=icon type='image/gif' href='index.gif' />
 <link rel=icon type='image/ico' href='index.ico' />
+<!----------------------------------------------------------------------------
+КАМЕРА			<-- Вхождение в блок управления КАМЕРОЙ
+ПОГОДА			<-- Вхождение в блок управления ПОГОДОЙ
+ВРЕМЯ			<-- Вхождение в блок управления ВРЕМЕНЕМ
+Иван Иваныч Иванов	<-- Вхождение в блок манипуляции ПЕРСОНАЖЕМ
+Иван Иваныч		<-- Вхождение в блок манипуляции ПЕРСОНАЖЕМ
+Иван Иванов		<-- Вхождение в блок манипуляции ПЕРСОНАЖЕМ
+----------------------------------------------------------------------------->
+<script type='text/javascript'>
+(function() {
+	var	gue = Object.create(HTMLTableElement.prototype);	// Graphic Unical Element
+	gue.createdCallback = function() {
+		var	cpt	= document.createElement("TR");
+		var	pic	= cpt.insertCell(0);
+		var	title	= cpt.insertCell(1);
+		var	buttons	= cpt.insertCell(2);
+		this.style.width = "100%";
+		this.style.position = "fixed";
+		this.style.top = "0px";
+		cpt.style.backgroundColor = "ActiveCaption";
+		cpt.style.color = "CaptionText";
+		cpt.style.width = "100%";
+		pic.style.width = "16px";
+		title.style.width = "100%";
+		buttons.style.whiteSpace = "nowrap";
+		var	picture	= new Image();
+		this.minimizer	= document.createElement("BUTTON");
+		this.maximizer	= document.createElement("BUTTON");
+		this.optimizer	= document.createElement("BUTTON");
+		this.minimizer.style.fontFamily = "Marlett";
+		this.maximizer.style.fontFamily = "Marlett";
+		this.optimizer.style.fontFamily = "Marlett";
+	try{	picture.src = document.querySelector("link[rel*='icon']").href;	} catch(e) {}
+		picture.style.width = "16px";
+		picture.style.height = "16px";
+		this.minimizer.textContent = "0";
+		this.maximizer.textContent = "2";
+		this.optimizer.textContent = "r";
+		pic.appendChild(picture);
+		title.textContent = this.innerHTML;
+		buttons.appendChild(this.minimizer);
+		buttons.appendChild(this.maximizer);
+		buttons.appendChild(this.optimizer);
+		this.textContent = "";
+		this.appendChild(cpt);
+		if(this.attributes.menu) {
+			var	mnu = document.getElementById(this.attributes.menu.nodeValue);
+			var	chk = document.createElement("INPUT");
+			chk.type = "checkbox";
+			mnu.insertBefore(chk, mnu.firstChild);
+			this.appendChild(mnu);
+		}
+		document.body.style.paddingTop = this.offsetHeight + "px";
+	};
+	document.registerElement("caption-bar", {
+		prototype	:gue
+	});
+	gue = Object.create(HTMLCanvasElement.prototype);	// Graphic Unical Element
+	gue.createdCallback = function() {
+		this.canvas = document.createElement("CANVAS");
+		this.canvas.height = (this.canvas.width = this.attributes.size ? this.attributes.size.value : 64);
+		this.context = this.canvas.getContext("2d");
+		this.design = {
+			clockDial	:{
+				color	:"cyan",
+				ghost	:"green"
+			}
+		,	hoursArrow	:{
+				color	:"brown"
+			,	width	:"5"
+			,	size	:"60%"
+			}
+		,	minutesArrow	:{
+				color	:"yellow"
+			,	width	:"3"
+			,	size	:"80%"
+			}
+		,	secondsArrow	:{
+				color	:"yellow"
+			,	width	:"1.5"
+			,	size	:"80%"
+			}
+		};
+		var	css	= document.styleSheets;
+		var	i, j, classes, classId, styles, style, tags, branch;
+		for(i = 0; i < css.length; ++ i) {
+			classes = css[i].cssRules;
+			for(classId = 0; classId < classes.length; ++ classId) {
+				tags = classes[classId];
+				if(tags.selectorText.toUpperCase() == this.tagName) {
+					styles = tags.style;
+					for(j = 0; j < styles.length; ++ j) {
+						if("--" == styles[j].substr(0, 2)) {
+							style = styles[j].substr(2).split("-");
+							if(style.length >= 3) {
+								branch = style[0] + style[1].charAt(0).toUpperCase() + style[1].substr(1);
+								if(branch in this.design && style[2] in this.design[branch])
+									this.design[branch][style[2]] = styles.getPropertyValue(styles[j]);
+							}
+						}
+					}
+				}
+			}
+		}
+		this.context.strokeStyle = this.style.color || "yellow";
+		this.context.fillStyle = this.style.backgroundColor || "cyan";
+		this.appendChild(this.canvas);
+		this.draw = function() {
+			var	size	= this.context.canvas.width / 2;
+			var	hours, minutes, seconds, percent;
+			var	timer	= [this.attributes.value.value];
+			if(this.attributes.waiting && this.attributes.waiting.value > timer[0])
+				timer.unshift(this.attributes.waiting.value),
+				this.context.fillStyle = this.design.clockDial.ghost;
+			else
+				this.context.fillStyle = this.design.clockDial.color;
+			do {
+				hours	= timer[0] / 3600000 * Math.PI / 6;
+				minutes	= timer[0] / 60000 * Math.PI / 30;
+				seconds	= timer[0] / 1000 * Math.PI / 30;
+				this.context.beginPath();
+				this.context.fillRect(0, 0, this.context.canvas.width, this.context.canvas.height);
+				percent = parseInt(this.design.hoursArrow.size, 10) / 100;
+				this.context.moveTo(size + size * Math.sin(hours) * percent, size - size * Math.cos(hours) * percent);
+				this.context.lineTo(size, size);
+				this.context.lineWidth = this.design.hoursArrow.width;
+				this.context.strokeStyle = this.design.hoursArrow.color;
+				this.context.stroke();
+				this.context.beginPath();
+				this.context.moveTo(size, size);
+				percent = parseInt(this.design.minutesArrow.size, 10) / 100;
+				this.context.lineTo(size + size * Math.sin(minutes) * percent, size - size * Math.cos(minutes) * percent);
+				this.context.lineWidth = this.design.minutesArrow.width;
+				this.context.strokeStyle = this.design.minutesArrow.color;
+				this.context.stroke();
+				this.context.beginPath();
+				this.context.moveTo(size, size);
+				percent = parseInt(this.design.secondsArrow.size, 10) / 100;
+				this.context.lineTo(size + size * Math.sin(seconds) * percent, size - size * Math.cos(seconds) * percent);
+				this.context.lineWidth = this.design.secondsArrow.width;
+				this.context.strokeStyle = this.design.secondsArrow.color;
+				this.context.stroke();
+				this.context.fillStyle = this.design.clockDial.color;
+				this.context.fillStyle += "80";
+				timer.shift()
+			} while(timer.length > 0);
+		}
+		this.step = function() {
+			var	step = +(this.attributes.step ? this.attributes.step.value : 10000);
+			this.draw();
+			this.attributes.value.value = (+this.attributes.value.value + step) % 86400000;
+			if(this.attributes.clock) {
+				var	hours = +this.attributes.clock.value;
+				if(hours >= 0)
+					if(Math.abs(hours / 3600000 - this.attributes.value.value / 3600000) > 10000)
+						this.attributes.value.value = +this.attributes.value.value + (this.attributes.clock.value - this.attributes.value.value) / 10;
+					else
+						this.attributes.clock.value = -hours;
+			}
+		}
+		this.start = function(speed) {
+			clearInterval(this.handle);
+			this.handle = setInterval(this.step.bind(this), speed || (this.attributes.delay ? this.attributes.delay.value : 500));
+		}
+		this.stop = function() {
+			clearInterval(this.handle);
+		}
+		this.addEventListener("mousedown"
+		, function(e) {
+			var	hours	= (Math.PI + Math.atan2(this.canvas.width / 2 - e.layerX, e.layerY - this.canvas.height / 2)) / Math.PI * 6 * 3600;
+			if(e.target.parentNode.attributes.value.value >= 43200)
+				hours	+= 43200;
+			e.target.parentNode.attributes.clock.value = hours;
+		});
+		this.start();
+	};
+	document.registerElement("clock-box", {
+		prototype	:gue
+	});
+})();
+/*document.registerElement("gui-caption", {
+	prototype: {
+		__proto__	:HTMLElement.prototype
+	,	attachedCallback:function() {
+			alert("atach!");
+		}
+	}
+})
+var MyTimerProto = Object.create(HTMLElement.prototype);
+
+  MyTimerProto.tick = function() {
+    this.timer++;
+    this.innerHTML = this.timer;
+  };
+
+  MyTimerProto.createdCallback = function() {
+    this.timer = 0;
+  };
+
+  MyTimerProto.attachedCallback = function() {
+    setInterval(this.tick.bind(this), 1000);
+  };
+
+  document.registerElement("my-timer", {
+    prototype: MyTimerProto
+  });*/
+</script>
+<script>
+  // регистрация произойдёт через 2 сек
+  setTimeout(function() {
+    document.registerElement("hello-world", {
+      prototype: {
+        __proto__: HTMLElement.prototype,
+        sayHi: function() { alert('Привет!'); }
+      }
+    });
+
+    // у нового типа элементов есть метод sayHi
+    hello.sayHi();
+  }, 2000000);
+</script>
+<script type='text/javascript'>
+var	MetaRefresh	= setInterval("if((Progress.value += +window.panic()) > 100) window.location = '';", 100);
+window.DOME = function() { Array.prototype.slice.call(document.querySelectorAll("[js]"), 0).forEach(function(elem) { window[elem.id] = elem; }); }
+window.HINT = function() {
+	Array.prototype.slice.call(document.querySelectorAll("[contenteditable=true]"), 0)
+	.forEach(function(elem) {
+		if(elem.title == "")
+			elem.title = "Click to edit";
+	});
+}
+window.panic = function() { return 10 / document.querySelector("meta[http-equiv='refresh']").content; }
+window.onerror =
+function(e_id, e_file, e_line, e_char, e_fn) {
+	if(Progress.value == 0)
+		window.panic = new Function("",
+			["var info = document.createElement('h1');"
+			,"info.style.backgroundColor = 'red';"
+			,"info.innerHTML = '[" + e_line + ":" + e_char + "]:" + e_id + "';"
+			,"document.body.appendChild(info);"
+			,"window.panic = function() { return 3; };"
+			,"return 25;"
+			].join("\r\n"));
+	return true;
+}
+</script>
 <script type='text/javascript'>
 Object.defineProperty(HTMLTextAreaElement.prototype, "selectionRow", {
 	enumerable	: true,
@@ -52,17 +298,317 @@ Object.defineProperty(HTMLTextAreaElement.prototype, "readRow", {
 	get		:
 		function() {
 			var	pos	= this.value.substr(0, this.selectionEnd).split(/\r?\n/).length
-			,	string	= this.value.split(/\r?\n/)[pos - 1];
-			this.selectionEnd += string.length + (this.value.indexOf("\r\n") < 0 ? 1 : 2);
+			,	crlf	= this.value.match(/\r?\n/)
+			,	lines	= this.value.split(/\r?\n/)
+			,	string	= lines[pos - 1];
+			this.selectionEnd = lines.slice(0, pos + 1).join(crlf[0]).length;
 			return	string;
 		},
 	set		:function(x) {}
 	}
 );
+//////////////////////////////////////////////////////////////////////////////
+// "JohnDoe".toName() == "John Doe"
+String.prototype.toName = function() { return this.replace(/([A-ZА-ЯЁ][a-zа-яё]*)(?:\.)/g, " $1").trim().split(/\s+/).join(""); };
+//////////////////////////////////////////////////////////////////////////////
+// "wAneSsa".toNick() == "Wanessa"
+String.prototype.toNick = function() { return this.charAt(0).toUpperCase() + this.substr(1).toLowerCase(); };
+//////////////////////////////////////////////////////////////////////////////
+// "Jo.D.".areNickOf({...}) == "JohnDoe"
+String.prototype.areNickOf =
+function(troupe) {
+	var	id, name;
+	var	i, p, part;
+	name = this.replace(/([A-ZА-ЯЁ][a-zа-яё]*)(?:\.)/g, " $1").trim().split(/\s+/);
+	id = name.join("");
+	if(id in troupe)
+		return id;
+	for(id in troupe) {
+		for(i in name) {
+			part = name[i];
+			p = id.indexOf(part);
+		}
+	}
+	return false;
+};
+//////////////////////////////////////////////////////////////////////////////
+// "Jo.D.".isNickOf({...}) == "JohnDoe"
+String.prototype.isNickOf =
+function(troupe) {
+	var	id, name;
+	var	a, b, c;
+	name = this.replace(/([A-ZА-ЯЁ][a-zа-яё]*)(?:\.)/g, " $1").trim().split(/\s+/);
+	id = name.join("");
+	if(id in troupe)
+		return id;
+	for(id = 0; id < name.length; ++ id)
+		name[id] = name[id].toNick();
+	id = name.join("");
+	if(id in troupe)
+		return id.join("");
+	for(id in troupe) {
+		a = id.indexOf(name[0]);
+		if(a >= 0) {
+			if(name.length > 1) {
+				b = id.indexOf(name[1], a);
+				if(b >= 0) {
+					if(name.length > 2) {
+						c = id.indexOf(name[2], b);
+						if(c >= 0)
+							return id;
+						else
+							continue;
+					}
+					else
+						return id;
+				} else
+					continue;
+			}
+			return id;
+		}
+	}
+	return false;
+};
+//////////////////////////////////////////////////////////////////////////////
+var	Lyrics	= [];
+function parseRow(string, parent) {
+	var	child;
+	var	count	= null;
+	var	action;
+	var	n;
+	var	str, cmd, times;
+	while(string.length > 0) {
+		n = -1;
+		times = string.match(/^(\d+:)?(\d+:)(\d+)(?:\.(\d+))?([\s\t]*)(\(?)/);
+		if(times) {
+			n = 3600000 * parseInt(times[1] || "0", 10)
+			+ 60000 * parseInt(times[2], 10)
+			+  1000 * parseInt(times[3], 10)
+			+     1 * parseInt((times[4] || "").padEnd(3, 0), 10);
+			n = -n;
+			if(times[6]) {
+				string = string.substr(times[0].length - 1);
+			} else {
+				string = string.substr(times[0].length);
+				child = document.createElement("QUOTE");
+				child.textContent = times[0].trim();
+				parent.appendChild(child);
+				continue;
+			}
+		}
+		str = string.match(/^([\s\t]*)(\d+)/);
+		if(str)
+			n = Number(str[2])
+		,	string = string.substr(str[0].length);
+		//cmd = string.split(/
+		str = string.match(/^([\s\t]*)([A-ZА-Я_]+\??)([\s\t]*)/i);
+		if(str) {
+			string = string.substr(str[0].length);
+			if("(" != string.charAt(0)) {
+				action = document.createElement("SPAN");
+				action.className = "Novel";
+				action.textContent = n < 0 ? str[2] : str[2] + "(" + n + ")";
+				parent.appendChild(action);
+				continue;
+			}
+			;
+		}
+		if("(" == string.charAt(0)) {
+			count = document.createElement("PROGRESS");
+			count.style.display = "block";
+			count.max = Math.abs(n),
+			count.value = Math.abs(n);
+			if(n < 0)
+				count.dataset.watch = Timer.id;
+			child = document.createElement("DIV");
+			child.className = "Novel";
+			child.appendChild(count);
+			parent.appendChild(child);
+			parent = child;
+		} else
+		if(")" == string.charAt(0)) {
+			if("PROGRESS" == parent.childNodes[0].tagName)
+				parent = parent.parentNode;
+		}
+		string = string.substr(1);
+	}
+	return parent;
+}
+var	actors = [];
+function parseRole(parent, text) {
+	var	basic = parent;
+	var	string,  child, nick = "", tmp;
+	text = text.split(/\r?\n/);
+	while(text.length) {
+		string = text.shift();
+		if(":" == string.substr(-1)) {
+			string = string.substr(0, string.length - 1);
+			tmp = string.match(/^(\d+):(\d\d)(.(\d\d))?/);
+			if(tmp) {
+				tmp = -60 * (parseInt(tmp[1], 10) * 60 + parseInt(tmp[2], 10));
+				child = document.createElement("QUOTE");
+				child.textContent = string;
+				parent.appendChild(child);
+				continue;
+			}
+			if("" != nick)
+				actors[nick] = parent;
+			nick = string.isNickOf(actors);
+			if(false != nick)
+				string = nick;
+			if(string in actors)
+				parent = actors[nick = string];
+			else {
+				nick = string;
+				child = document.createElement("H2");
+				child.textContent = nick;
+				basic.appendChild(child);
+				child = document.createElement("P");
+				child.className = "Novel";
+				basic.appendChild(child);
+				parent = child;
+				actors[nick] = parent;
+			}
+		} else
+		if(string.match(/^[A-ZА-Я]/)) {
+			child = document.createElement("QUOTE");
+			child.textContent = string;
+			parent.appendChild(child);
+		} else
+		/*if(string.match(/^(\d+:)?(\d+:)(\d+)(\.\d+)?(\.*)$/)) {
+			child = document.createElement("QUOTE");
+			child.textContent = string;
+			parent.appendChild(child);
+		} else*/
+			parent = parseRow(string, parent);
+	}
+	for(child in actors)
+		actors[child] = actors[child].firstChild;
+}
+//////////////////////////////////////////////////////////////////////////////
+function findActive(html, actions, lyrics) {
+	var	active = true;
+	var	watch;
+	while(null != html) {
+		if("DIV" == html.tagName) {
+			//if("DIV" == html.parentNode.tagName || html.parentNode.tagName == "P")
+			//	html.parentNode.className = "Ready";
+			html = html.childNodes[0];
+			html.value = 0;
+		} else
+		if("PROGRESS" == html.tagName) {
+			if(html.dataset.watch && (html.dataset.watch in window)) {
+				watch = window[html.dataset.watch].attributes;
+				if("value" in watch) {
+					if(!watch.waiting || (watch.waiting.value > html.max && html.max > watch.value.value)) {
+						var typ = document.createAttribute("waiting");
+						typ.nodeValue = html.max;
+						watch.setNamedItem(typ);
+					}
+					watch = watch.value;
+				} else
+					watch = html;
+			} else
+				watch = html;
+			if(html.max > watch.value) {
+				html.value = watch.value + (watch === html ? 1 : 0);
+				active = html.max > watch.value;
+				if(null == html.nextSibling)
+					break;
+				html = html.nextSibling;
+			} else {
+				html = html.parentNode;
+				html.className = "Novel Leave";
+				if(null == html.nextSibling) {
+					html = html.parentNode;
+					html = "DIV" == html.tagName ? html.childNodes[0] : null;
+				} else
+					html = html.nextSibling;
+			}
+		} else
+		if("SPAN" == html.tagName || html.tagName == "QUOTE") {
+			if("QUOTE" == html.tagName) {
+				if(".." == html.textContent.substr(-2))
+					lyrics.length = 0,
+					lyrics.push(html.textContent.substr(0, html.textContent.length - 2));
+				else
+				if(html.textContent.match(/^(\d+):(\d\d)/))
+					actions.push(html.textContent);
+				else
+					lyrics.push(html.textContent);
+			} else {
+				if("?" == html.textContent.substr(-1)) {
+					if(FIO.$.indexOf(html.textContent) < 0) {
+						html = html.parentNode.childNodes[0];
+						if("PROGRESS" != html.tagName)
+							html = null;
+						break;
+					}
+				} else
+					actions.push(html.textContent);
+			}
+			if(active)
+				html.parentNode.className = "Novel Watch";
+			else
+				html.parentNode.className = "Novel Leave";
+			if(null == html.nextSibling) {
+				html = html.parentNode.childNodes[0];
+				if("PROGRESS" != html.tagName)
+					html = null;
+				break;
+			} else
+				html = html.nextSibling;
+		} else
+			html = null;
+	}
+	return html;
+}
+function process() {
+	var	nick, acts = [];
+	for(nick in actors) {
+		var	actions = [nick];
+		var	lyrics;
+		if(!(nick in Lyrics))
+			Lyrics[nick] = [];
+		lyrics = Lyrics[nick];
+		if(null != actors[nick]) {
+			actors[nick] = findActive(actors[nick], actions, lyrics);
+			acts.push(actions);
+		}
+	}
+	var	h = [], n;
+	for(var i = 0; i < acts.length; ++ i) {
+		var	tmp = acts[i].shift(), a = [];
+		h.push("<b>" + tmp + "</b>");
+		if(Lyrics[tmp].length)
+			h.push("<i>" + Lyrics[tmp].join("<br />") + "</i>");
+		acts[i].forEach(function(s) {
+			var	times = s.match(/^(\d+:)?(\d+:)(\d+)(?:\.(\d+))?/);
+			if(times) {
+				var hours = 3600000 * parseInt(times[1] || "0", 10)
+					+ 60000 * parseInt(times[2], 10)
+					+  1000 * parseInt(times[3], 10)
+					+     1 * parseInt((times[4] || "").padEnd(3, 0), 10);
+				//if(hours[4])
+				//	setTimeout(
+				if(times[4] && !times[1])
+					document.getElementsByTagName("clock-box")[0].attributes.step.value = hours;
+				else
+					document.getElementsByTagName("clock-box")[0].attributes.clock.value = hours,
+					document.getElementsByTagName("clock-box")[0].attributes.value.value = hours;
+			}
+			a.push(s);
+		});
+		h.push(a.join("; "))
+	}
+	Actions.innerHTML = h.join("<br />");
+	setTimeout(process, 250);
+}
+</script>
+<script type='text/javascript'>
 function init() {
 	var	storage = null;
-	window.pageStorage = {};
-	document.querySelectorAll("[data-storage]")
+	Array.prototype.slice.call(document.querySelectorAll("[data-storage]"), 0)
 	.forEach(
 	function(elem) {
 		var	data = elem.dataset.storage.match(/([^:]+):([^.]+)\.([^.]+)\.(.*)/);
@@ -131,12 +677,18 @@ function init() {
 	}
 }
 //////////////////////////////////////////////////////////////////////////////
+</script>
+<script type='text/javascript'>
 function main() {
 	setInterval(
 	function() {
 		PAD_row.$ = BIO.selectionRow.start;
 		PAD_column.$ = BIO.selectionColumn.start;
+		Timer.value = +Timer.value + 60;
 	}, 100);
+		//Bio.focus(); parseRow(Bio.readRow, Parsed); process(Parsed);// .childNodes[0]);
+		Bio.focus(); parseRole(Parsed, Bio.value);
+		process();// .childNodes[0]);
 }
 </script>
 <style>
@@ -156,24 +708,35 @@ body
 	cursor		:default;
 	width		:100%;
 }
-.TitleBar tr:nth-child(odd)
+.TitleBar tr:nth-child(1)
 {
 	background-color:ActiveCaption;
 	color		:CaptionText;
 	font-weight	:normal;
 	text-align	:left;
 }
-.TitleBar tr:nth-child(even)
+.TitleBar tr:nth-child(2)
 {
 	background-color:Menu;
 	color		:MenuText;
 	padding		:0px 0px 0px 0px;
 	margin		:0px 0px 0px 0px;
 }
+.TitleBar tr:nth-child(3)
+{
+}
+.TitleBar tr:nth-child(4)
+{
+	vertical-align	:bottom;
+}
 .TitleBar th
 {
 	font-weight	:normal;
 	text-align	:left;
+}
+.TitleBar th:nth-child(2)
+{
+	width		:100%;
 }
 .TitleBar td
 {
@@ -222,6 +785,8 @@ body
 	border		:1px outset;
 	display		:none;
 	list-style-type	:none;
+	list-style-type		:none;
+	list-style-position	:outside;
 }
 .TitleBar li
 {
@@ -259,15 +824,153 @@ body
 	background-color:ButtonFace;
 	font-family	:Marlett;
 }
+progress[value^='-'] {
+	display		:none;
+}
+progress#Progress {
+	display		:inline;
+	bottom		:0;
+	position	:fixed;
+}
+div#Actions	{
+	background-color:cyan;
+	display		:inline-block
+}
+.Action	{
+	margin-left	:1em;
+	border		:thin solid;
+}
+.Role	{
+	background-color:green;
+}
+div.Novel	{
+	border		:this solid;
+	margin-left	:1em;
+	padding-left	:1em;
+}
+div.Watch, p.Watch	{
+	background-color:silver;
+}
+div.Leave	{
+	background-color:grey;
+}
+div.Novel span	{
+	margin-right	:1em;
+}
+.Novel quote	{
+	background-color:cyan;
+	margin-left	:1em;
+	border		:thin solid;
+	display		:block;
+}
+.Active	{
+	background-color:silver;
+}
+.Ready	{
+	background-color:grey;
+}
+div.Novel progress {
+	width		:100%;
+}
+  /* стиль для :unresolved элемента (до регистрации) */
+  hello-world:unresolved {
+    color: white;
+  }
+
+  hello-world {
+  display:block;
+    transition: color 3s;
+  }
+caption-bar input
+{
+	display		:none;
+}
+caption-bar label
+{
+	background-color:Menu;
+	color		:MenuText;
+	display		:block;
+}
+caption-bar label menu
+{
+	background-color:inherit;
+	color		:inherit;
+	border		:none;
+	padding		:1px 9px 1px 9px;
+	margin		:0 0 0 0;
+	display		:inline-block;
+}
+caption-bar input ~ menu:hover
+{
+	border		:1px outset;
+	padding		:0px 8px 0px 8px;
+}
+caption-bar input:checked ~ menu:hover
+{
+	border		:1px inset;
+	padding		:0px 8px 0px 8px;
+}
+caption-bar input:checked ~ menu:active
+{
+	border		:1px inset;
+}
+caption-bar menu ul
+{
+	background-color:inherit;
+	color		:inherit;
+	position	:absolute;
+	border		:1px outset;
+	display		:none;
+	list-style-type	:none;
+	list-style-type		:none;
+	list-style-position	:outside;
+}
+caption-bar li
+{
+	background-color:inherit;
+	color		:inherit;
+}
+caption-bar input:checked ~ menu:hover ul
+{
+	background-color:inherit;
+	color		:inherit;
+	display		:block;
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+}
+caption-bar input:checked ~ menu:hover li:hover
+{
+	background-color:Highlight;
+	color		:HighlightText;
+}
+caption-bar input:checked ~ menu:hover li menu
+{
+	padding-left	:0px;
+}
+caption-bar input:checked ~ menu:hover li menu ul
+{
+	background-color:Menu;
+	color		:MenuText;
+	display		:none;
+	position	:absolute;
+}
+caption-bar input:checked ~ menu:hover li:hover menu ul
+{
+	background-color:Highlight;
+	color		:HighlightText;
+	display		:inline-block;
+}
+clock-box
+{
+	background-color:red;
+	--hours-arrow-color:blue;
+	--minutes-arrow-color:red;
+}
 </style>
 </head>
-<body onload='init(); main()'>
-<table class=TitleBar>
-<tr><th><img src=index.gif /></th>
-<th class=storage tabindex=-1 data-storage='wls:keyup.TITLE.innerHTML' contenteditable=true>CCCP - Common Creative Collection Project</th>
-<th><button tabindex=-1>0</button><button tabindex=-1>2</button><button tabindex=-1>r</button></th></tr>
-<tr><td colspan=3>
-<label><input type=checkbox />
+<body onload='DOME(); HINT(); init(); main()' onmouseover='if(MetaRefresh) clearInterval(MetaRefresh); MetaRefresh = null;'>
+<caption-bar menu=MenuBar>CCCP - Common Creative Collection Project</caption-bar>
+<label id=MenuBar>
 <menu>File<ul>
 <li onclick='window.localStorage.clear(); window.location=""'>New</li>
 <li>Open</li>
@@ -281,42 +984,79 @@ body
 </menu><menu>View<ul>
 <li>Normal</li>
 <li>Extend</li>
-<li>Custom</li>
+<li><menu>Custom<ul>
+<li>Dark</li>
+<li>Lite</li></ul>
+</menu>
+</li>
 </ul></menu><menu>Help<ul>
 <li>Info</li>
 <li>Help</li>
 <li onclick='return false'>About</li>
 </ul></menu>
-</label>
-</td></tr></table>
+<!--span id=Caption-Status style='position:fixed; right:0%; white-space:nowrap;'>12:59<progress style=width:64px></progress></span--></label>
 Your Name<br />
-<input id=Fio class=storage data-storage='wls:focus/input.FIO.value' value='Mr. Who?'><br />
+<input id=Fio class=storage data-storage='wls:focus/input.FIO.value' value='Mr. мышь?'><br />
+<textarea id=Chat rows=2 cols=80 js></textarea>
+<input id=Msg type=text js /><button onclick='ChatSend(Msg.value)'>Say</button>
 Your Bio
 <span id=PIO tabindex=-1 data-storage='wls:mouseup.PIO.innerHTML selectionStart selectionEnd' contenteditable=true>Judo...</span><br />
-<textarea id=Bio rows=16 cols=80 class=storage data-storage='wls:keyup/mouseup.BIO.value selectionStart selectionEnd'>
-Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+<textarea id=Bio rows=6 cols=80 class=storage data-storage='wls:keyup/mouseup.BIO.value selectionStart selectionEnd'>
+ВРЕМЯ:
+00:00.1 10:00:00 10:00:10()
+01:02.0 12:00:00 18:00:00()
+00:00.1 20:00:00()
+КАМЕРА:
+Утро..
+14()
+Вечер..
+Василий Пупкин:
+стоит,центр
+Белая берёза под мои окном..
+Принакрылась снегом, точно серебром
+13(
+ прыгает,мышь?
+ шагает
+)
+На пушистых ветках снежною каймой..
+Принакрылись листья белой бахромой
+12:34(скачет)
+2 шагает 3(4 говорит 5(прыгает,приседает)7(избегает J.S.) махает 9(окружает))
+John Smith:
+12(прыгает 5(мечтает,убегает) прибегает)
+В.П.:
+Lorem ipsum dolor sit amet, consectetur adipiscing elit...
 Sed felis sapien, vestibulum vel velit non, interdum ornare mauris.
 Proin semper feugiat neque, vitae aliquam turpis eleifend id.
 Nullam sapien risus, suscipit non ante bibendum, rhoncus sodales nulla.
 Nam lectus lectus, tincidunt ut lectus eu, porttitor interdum tellus.
-Donec orci est, fringilla at malesuada id, vulputate sit amet nulla.
+2()
+Donec orci est, fringilla at malesuada id, vulputate sit amet nulla...
 Cras vehicula, purus et varius malesuada, lectus neque venenatis libero, lobortis dictum turpis ligula vel diam.
 Donec at congue purus. Sed interdum dolor non blandit maximus.
 Quisque finibus, turpis id tincidunt tempus, neque nibh eleifend eros, vitae tincidunt ipsum ante ut ligula.
-Proin feugiat urna sit amet risus rhoncus viverra.
+2()
+Proin feugiat urna sit amet risus rhoncus viverra...
 Vestibulum interdum nibh eu nibh maximus convallis.
 Aenean ipsum elit, tincidunt vitae urna in, gravida laoreet odio.
 </textarea><br />
-<button onclick='Linear.$ = Bio.peekRow'>.peekRow</button>
-<span onmouseover='Linear.$ = Bio.readRow'>Row:
+<clock-box id=Timer size=64 value=0 step=1000 clock=0 delay=100 js></clock-box>
+<div js id=Actions></div><br />
+<button onclick='Linear.$ = Bio.peekRow'>.peek</button>
+<button onclick='Bio.focus(); Linear.$ = Bio.readRow'>.read</button>
+<button onclick='Bio.focus(); parseRow(Bio.readRow, Parsed); process(Parsed.childNodes[0])'>.parse</button>Row:
 <span class=storage data-storage='wls:load.PAD_row.textContent'>???</span> / Col:
 <span class=storage data-storage='wls:load.PAD_column.textContent'>???</span></span>
-<pre id=Linear rows=12 cols=80 class=storage data-storage='wls:focus.LINES.textContent'>
-<h1>Achtung!</h1>
+<pre id=Linear rows=12 cols=80 class=storage data-storage='wls:focus.LINES.innerHTML'>
+<h3>Achtung!</h3>
 <b>Это альфа-тест с использованием локального хранилища.
 Многие из элементов после закрытия страницы будут восстановлены при повторном открытии.
 Очистить хранилище можно в меню: «File -&gt; New»…</b>
 Просто, раньше это было без надобности и я не изучал эту технологию.
 Сейчас - решил несколько поднаверстать…
 </pre>
+<div js id=Parsed class=Role></div>
+<hello-world id="hello">Hello, world!</hello-world>
+<img id=myimg></img>
+<progress js id=Progress value=0 max=100 style='width:100%;'></progress>
 </body>
