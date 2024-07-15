@@ -439,8 +439,10 @@ var	db;
 var	triangleRef;
 var	connectionsRef;
 var	connectedRef;
+var	cursorsRef;
 var	users = 0;
 var	users_max = 0;
+var	userKey;
 
 function Connect() {
 	const firebaseConfig = {
@@ -476,6 +478,7 @@ function Connect() {
 			}
 		}
 	});
+	cursorsRef = db.ref("/Hands");
 	triangleRef = db.ref('/triangle');
 	connectionsRef = db.ref("/connections");
 /*	connectedRef = db.ref(".info/connected");
@@ -491,14 +494,19 @@ function Connect() {
 	setInterval(function() {
 		var	time = new Date();
 		var	seconds = time.getSeconds();
-		if(seconds == 0)
+		if(seconds == 0) {
 			users_max = users,
 			users = 0,
 			connectionsRef.set({});
-		else
+			var	cursors = document.getElementById("Cursors");
+			while(cursors.firstChild)
+				cursors.removeChild(cursors.firstChild);
+
+		} else
 		if(seconds == 5) {
 			var con = connectionsRef.push(true);
 			//connectionsRef.set(users + 1);
+			userKey = con.key;
 			con.onDisconnect().remove();
 		}
 	}, 1000
@@ -522,6 +530,37 @@ function Connect() {
 		// Display the viewer count in the html.
 		// The number of online users is the number of children in the connections list.
 		document.title = `${users}/${users_max} users online`;
+		var	cursors = document.getElementById("Cursors");
+		snapshot.forEach(
+			function(id) {
+				var	hCursor = document.getElementById(`Cursor-${id}`);
+				if(!hCursor) {
+					hCursor = document.createElement("span");
+					hCursor.id = `Cursor-${id}`;
+					hCursor.textContent = "#";
+					cursors.appendChild(hCursor);
+				}
+				
+			}
+		);
+	});
+	cursorsRef.on('value',  function(snapshot) {
+		var	users = snapshot.val();
+		if(typeof users == "object") {
+			var	cursors = document.getElementById("Cursors");
+			for(var id in users) {
+				var	coords = users[id].split(/\s/);
+				var	hCursor = document.getElementById(`Cursor-${id}`);
+				if(!hCursor) {
+					hCursor = document.createElement("span");
+					hCursor.id = `Cursor-${id}`;
+					hCursor.textContent = "#";
+					cursors.appendChild(hCursor);
+				}
+				hCursor.style.left = `${Number(coords[0])}px`;
+				hCursor.style.top = `${Number(coords[1])}px`;
+			}
+		}
 	});
 	triangleRef.on('value', (snapshot) => {
 		const data = snapshot.val();
@@ -560,6 +599,12 @@ function Connect() {
 	}, (error) => {
 		console.log(error);
 	});
+	document.body.addEventListener("mousemove", function(evt) {
+			if(userKey) {
+				db.ref(`/Hands/${userKey}`).set(`${evt.offsetX} ${evt.offsetY}`);
+			}
+		}
+	);
 }
 
 function Publication() {
@@ -904,6 +949,10 @@ th, td
 {
 	white-space	:nowrap;
 }
+
+div#Cursors span {
+	position	:absolute;
+}
 </style>
 
 </head>
@@ -1019,6 +1068,7 @@ th, td
 <textarea id=Chat rows=10 cols=80 Floating='320x120+512+64' title='Chat'></textarea>
 <pre id=ConnectionLog Floating='240x120' title='Firebase Logs' style=overflow:auto></pre>
 <select id=Orders Floating='+1152+128' dummy Switch title='Floating: Order' size=1></select>
+<div id=Cursors></div>
 <script>
 main();
 setTimeout(mainTriangles, 1);
