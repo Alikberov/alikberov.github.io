@@ -1,17 +1,6 @@
-<!doctype html>
-<html itemscope='' itemtype='http://schema.org/SearchResultsPage'	lang='ru'	  >
-<head											  >
-<meta content='text/html; charset=UTF-8'		http-equiv='Content-Type'	 />
-<meta content='ru-RU'					http-equiv='Content-Language'	 />
-<meta content='personal,page'						name='keywords'	 />
-<meta content='Static'							name='googlebot' />
-<meta content='NoIndex,NoArchive'					name='Robots'	 />
-<meta content='http://github.com/Alikberov'				name='Author'	 />
-<meta description='CCCP'								 />
-<meta http-equiv=refresh content='200'							 />
-<title>CCCP - Common Creative Collection Project</title>
-<link rel=icon type='image/gif' href='index.gif' />
-<link rel=icon type='image/ico' href='index.ico' />
+<html>
+<head>
+<title>Интерактивный калькулятор площади треугольника</title>
 
 <script>
 var	hDB = {};
@@ -450,6 +439,8 @@ var	db;
 var	triangleRef;
 var	connectionsRef;
 var	connectedRef;
+var	users = 0;
+var	users_max = 0;
 
 function Connect() {
 	const firebaseConfig = {
@@ -487,7 +478,7 @@ function Connect() {
 	});
 	triangleRef = db.ref('/triangle');
 	connectionsRef = db.ref("/connections");
-	connectedRef = db.ref(".info/connected");
+/*	connectedRef = db.ref(".info/connected");
 	connectedRef.on("value", function(snap) {
 		// If they are connected..
 		if(snap.val()) {
@@ -496,7 +487,22 @@ function Connect() {
 			// Remove user from the connection list when they disconnect.
 			con.onDisconnect().remove();
 		}
-	});
+	});*/
+	setInterval(function() {
+		var	time = new Date();
+		var	seconds = time.getSeconds();
+		if(seconds == 0)
+			users_max = users,
+			users = 0,
+			connectionsRef.set({});
+		else
+		if(seconds == 5) {
+			var con = connectionsRef.push(true);
+			//connectionsRef.set(users + 1);
+			con.onDisconnect().remove();
+		}
+	}, 1000
+	);
 /*	triangleRef.once('value', (snapshot) => {
 		const data = snapshot.val();
 		if(typeof data === "object") {
@@ -511,10 +517,11 @@ function Connect() {
 	}, (error) => {
 		console.log(error);
 	});*/
-	connectedRef.on('value',  function(snapshot) {
+	connectionsRef.on('value',  function(snapshot) {
+		users = snapshot.numChildren();
 		// Display the viewer count in the html.
 		// The number of online users is the number of children in the connections list.
-		document.title = `${snapshot.numChildren()} users online`;
+		document.title = `${users}/${users_max} users online`;
 	});
 	triangleRef.on('value', (snapshot) => {
 		const data = snapshot.val();
