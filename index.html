@@ -4,6 +4,17 @@
 
 <script>
 var	hDB = {};
+
+var	user_latitude = "x";
+var	user_longitude = "y";
+
+if(navigator.geolocation) {
+	navigator.geolocation.getCurrentPosition(function(position) {
+		user_latitude = position.coords.latitude;
+		user_longitude = position.coords.longitude;
+	});
+}
+
 </script>
 
 <script>
@@ -443,6 +454,7 @@ var	cursorsRef;
 var	users_num = 0;
 var	users_max = 0;
 var	userKey;
+var	nCursors = 0;
 
 function Connect() {
 	const firebaseConfig = {
@@ -537,7 +549,7 @@ function Connect() {
 				if(!hCursor) {
 					hCursor = document.createElement("span");
 					hCursor.id = `Cursor-${id}`;
-					hCursor.textContent = "#";
+					hCursor.textContent = `#`;
 					cursors.appendChild(hCursor);
 				}
 				
@@ -548,7 +560,7 @@ function Connect() {
 		var	users = snapshot.val();
 		if(typeof users == "object") {
 			var	cursors = document.getElementById("Cursors");
-			var	nCursors = 0;
+			nCursors = 0;
 			for(var id in users) {
 				nCursors ++;
 				var	coords = users[id].split(/\s/);
@@ -556,7 +568,7 @@ function Connect() {
 				if(!hCursor) {
 					hCursor = document.createElement("span");
 					hCursor.id = `Cursor-${id}`;
-					hCursor.textContent = "#";
+					hCursor.textContent = `@${coords[2]}\n${coords[3]}`;
 					cursors.appendChild(hCursor);
 				}
 				hCursor.style.left = `${Number(coords[0])}px`;
@@ -604,7 +616,7 @@ function Connect() {
 	});
 	document.body.addEventListener("mousemove", function(evt) {
 			if(userKey) {
-				db.ref(`/Hands/${userKey}`).set(`${evt.offsetX} ${evt.offsetY}`);
+				db.ref(`/Hands/${userKey}`).set(`${evt.offsetX} ${evt.offsetY} ${user_latitude} ${user_longitude}`);
 			}
 		}
 	);
