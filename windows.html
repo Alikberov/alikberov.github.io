@@ -1,0 +1,195 @@
+<html>
+<head>
+<title>Inter Windows</title>
+
+<script>
+class Floater extends HTMLElement {
+	static #ListFor = null;
+	constructor() {
+		super();
+	}
+	connectedCallback() {
+		var	x1, y1;
+		if(this.querySelector("header"))
+			return;
+		const	hHeader = document.createElement("header");
+		this.className = "floater";
+		this.appendChild(hHeader);
+		this.open = true;
+		if(this.hasAttribute("for"))
+			Floater.ListFor = this.getAttribute("for");
+		hHeader.textContent = this.title;
+		this.addEventListener("mousedown", this.bringToTop);
+		hHeader.addEventListener("mousedown",
+			(function(evt) {
+				document.onmousemove = onMouseMove.bind(this);
+				x1 = evt.clientX - this.offsetLeft;
+				y1 = evt.clientY - this.offsetTop;
+				evt.preventDefault();
+			}).bind(this)
+		);
+		hHeader.addEventListener("mouseup",
+			(function(evt) {
+				document.onmousemove = null;
+			}).bind(this)
+		);
+		setTimeout((function() {
+			this.style.left = `${this.offsetLeft}px`;
+			this.style.top = `${this.offsetTop}px`;
+		}).bind(this), 0);
+		function onMouseMove(evt) {
+			const	x = evt.clientX - x1;
+			const	y = evt.clientY - y1;
+			this.style.left = `${x}px`;
+			this.style.top = `${y}px`;
+			evt.preventDefault();
+		}
+	}
+	disconnectedCallback() {
+	}
+	static get observedAttributes() {
+		return "".split(/\s+/);
+	}
+	attributeChangedCallback(name, oldValue, newValue) {
+		// вызывается при изменении одного из перечисленных выше атрибутов
+	}
+	bringToTop() {
+		var	els = document.getElementsByTagName("float-it");
+		if(this != els[els.length - 1] && !this.hasAttribute("drown"))
+			this.parentElement.insertBefore(this, els[els.length - 1].nextSibling);
+		if(Floater.ListFor) {
+			var	hList = document.getElementById(Floater.ListFor);
+			hList.length = 0;
+			for(const el of document.getElementsByTagName("float-it")) {
+				const hOption = document.createElement("option");
+				hOption.textContent = el.title;
+				hOption.value = el.title;
+				hList.appendChild(hOption);
+			}
+			hList.size = hList.length;
+		}
+	}
+	arange() {
+		var	hFlag = document.getElementById("DoFloating");
+		var	flag = hFlag.checked;
+		hFlag.checked = false;
+		for(const el of document.getElementsByTagName("float-it")) {
+			var box = el.getBoundingClientRect();
+			el.style.left = `${box.left}px`;
+			el.style.top = `${box.top}px`;
+		}
+		hFlag.checked = flag;
+	}
+}
+
+customElements.define("float-it", Floater);
+
+</script>
+
+<style>
+:root {
+	--display-bg	:linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee 100%)
+			,linear-gradient(45deg, #eee 25%, #e8e8e8 25%, #e8e8e8 75%, #eee 75%, #eee 100%);
+}
+
+@keyframes canvasChecks {
+	from {
+		background-position: 0px 0px, 10px 10px;
+	}
+
+	to {
+		background-position: 40px 20px, 50px 30px;
+	}
+}
+
+canvas#Display
+{
+	/*position	:absolute;*/
+}
+
+body
+{
+	margin-top	:28px;
+	margin-left	:0px;
+	margin-right	:0px;
+	margin-bottom	:14px;
+	padding-top	:0px;
+	padding-left	:0px;
+	padding-right	:0px;
+	padding-bottom	:0px;
+	animation-duration: 30s;
+	animation-timing-function: linear;
+	--animation-name	:canvasChecks;
+	animation-iteration-count: infinite;
+	--background-position: 0px 0px, 10px 10px;
+	--background-size	:20px 20px;
+	--background-image:var(--display-bg);
+	background-image:url('https://ia801705.us.archive.org/16/items/windows-xp-bliss-wallpaper/windows-xp-bliss-4k-lu-1920x1080.jpg');
+	overflow	:hidden;
+}
+
+input#DoFloating {
+	display	:none;
+}
+input ~ float-it {
+	position	static;
+}
+
+input#DoFloating:checked ~ float-it {
+	position	:absolute;
+}
+input#DoFloating ~ float-it label[for="DoFloating"] {
+	border		:medium silver outset;
+	background-color:silver;
+}
+input#DoFloating:checked ~ float-it label[for="DoFloating"] {
+	border		:medium silver inset;
+} 
+
+float-it {
+	border		:medium silver outset;
+	display		:inline-block;
+	margin		:0 0 0 0;
+	padding		:0 0 0 0;
+	position	:static;
+}
+float-it pre {
+	overflow	:auto;
+	resize		:both;
+}
+float-it header {
+	background	:linear-gradient(90deg, grey, #B5B5B5);
+	color		:white;
+	cursor		:move;
+	display		:block;
+	margin		:0 0 0 0;
+	padding		:0 0 0 0;
+	width		:100%;
+}
+float-it:last-child header {
+	background	:linear-gradient(90deg, navy, #10B4D0);
+}
+
+select#FloatList {
+	display		:block;
+}
+
+video {
+	resize		:both;
+}
+</style>
+</head>
+
+<body>
+<input id=DoFloating type=checkbox />
+<float-it title='Windows' for=FloatList drown>
+<label for=DoFloating>Change Mode</label><button onclick='this.parentElement.arange()'>Arange</button>
+<select id=FloatList></select>
+</float-it>
+<float-it title='Window "Div"'><div>Div-Tag</div></float-it>
+<float-it title='Window "Pre"'><pre>Pre-Tag</pre></float-it>
+<float-it title='Window "TextArea"'><textarea>TextArea-Tag</textarea></float-it>
+<float-it title='Window "YouTube"' drown>
+<iframe id=YouTube title='YouTube' width="560" height="315" src='https://www.youtube.com/embed/HiQrUDIah4E' title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+</float-it>
+</body>
