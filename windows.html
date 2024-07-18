@@ -19,18 +19,20 @@ class Floater extends HTMLElement {
 		if(this.hasAttribute("for"))
 			Floater.ListFor = this.getAttribute("for");
 		hHeader.textContent = this.title;
-		this.addEventListener("mousedown", this.bringToTop);
-		hHeader.addEventListener("mousedown",
+		this.addEventListener("pointerdown", this.bringToTop);
+		hHeader.addEventListener("pointerdown",
 			(function(evt) {
-				document.onmousemove = onMouseMove.bind(this);
+				document.body.setPointerCapture(evt.pointerId);
+				document.body.onpointermove = onMouseMove.bind(this);
 				x1 = evt.clientX - this.offsetLeft;
 				y1 = evt.clientY - this.offsetTop;
 				evt.preventDefault();
 			}).bind(this)
 		);
-		hHeader.addEventListener("mouseup",
+		hHeader.addEventListener("pointerup",
 			(function(evt) {
-				document.onmousemove = null;
+				document.body.onpointermove = null;
+				document.body.releasePointerCapture(evt.pointerId);
 			}).bind(this)
 		);
 		setTimeout((function() {
