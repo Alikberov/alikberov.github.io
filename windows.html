@@ -29,7 +29,7 @@ class Floater extends HTMLElement {
 				evt.preventDefault();
 			}).bind(this)
 		);
-		hHeader.addEventListener("pointerup",
+		document.body.addEventListener("pointerup",
 			(function(evt) {
 				document.body.onpointermove = null;
 				document.body.releasePointerCapture(evt.pointerId);
