@@ -35,7 +35,7 @@ function Connect() {
 <script>
 class Floater extends HTMLElement {
 	static #ListFor = null;
-	static #Order = [];
+	static #Order = null;
 	constructor() {
 		super();
 	}
@@ -123,7 +123,7 @@ class Floater extends HTMLElement {
 			if(Floater.ListFor) {
 				var	hList = document.getElementById(Floater.ListFor);
 				hList.length = 0;
-				for(const el of document.getElementsByTagName("float-it")) {
+				for(const el of Floater.Order) {
 					const hOption = document.createElement("option");
 					hOption.textContent = el.title;
 					hOption.value = el.title;
