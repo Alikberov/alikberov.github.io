@@ -3,6 +3,36 @@
 <title>Inter Windows</title>
 
 <script>
+var	scripts_counter = 0;
+const	scripts_list = [
+	"https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js",
+	"https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js",
+	"https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js",
+	"https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"
+];
+
+function script_loaded() {
+	console.log(`${-- scripts_counter} scripts left`);
+	if(!scripts_counter) {
+		document.getElementById("DoFloating").checked = true;
+		[...document.getElementsByTagName("float-it")].pop().bringToTop();
+		Connect();
+	}
+}
+
+for(script_url of scripts_list) {
+	var script_tag = document.createElement("script");
+	script_tag.setAttribute("src", script_url);
+	script_tag.addEventListener("load", script_loaded);
+	document.head.appendChild(script_tag);
+	scripts_counter ++;
+}
+
+function Connect() {
+}
+</script>
+
+<script>
 class Floater extends HTMLElement {
 	static #ListFor = null;
 	constructor() {
