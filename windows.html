@@ -35,6 +35,7 @@ function Connect() {
 <script>
 class Floater extends HTMLElement {
 	static #ListFor = null;
+	static #Order = [];
 	constructor() {
 		super();
 	}
@@ -42,6 +43,9 @@ class Floater extends HTMLElement {
 		var	x1, y1;
 		if(this.querySelector("header"))
 			return;
+		if(!Floater.Order)
+			Floater.Order = [];
+		Floater.Order.push(this);
 		const	hHeader = document.createElement("header");
 		this.className = "floater";
 		this.appendChild(hHeader);
@@ -85,20 +89,48 @@ class Floater extends HTMLElement {
 	attributeChangedCallback(name, oldValue, newValue) {
 		// вызывается при изменении одного из перечисленных выше атрибутов
 	}
+	getStyle(styleProp) {
+		if(window.getComputedStyle)
+			return document.defaultView.getComputedStyle(this, null).getPropertyValue(styleProp);
+		else
+		if(this.currentStyle)
+			return this.currentStyle[styleProp];
+	}
+	getZIndex(el) {
+		if(!el.style)
+			return 0;
+		var z = document.defaultView.getComputedStyle(el, null).getPropertyValue("z-index");
+		if(isNaN(z) && el.parentNode)
+			return this.getZIndex(el.parentNode);
+		return z;
+	}
 	bringToTop() {
-		var	els = document.getElementsByTagName("float-it");
-		if(this != els[els.length - 1] && !this.hasAttribute("drown"))
-			this.parentElement.insertBefore(this, els[els.length - 1].nextSibling);
-		if(Floater.ListFor) {
-			var	hList = document.getElementById(Floater.ListFor);
-			hList.length = 0;
-			for(const el of document.getElementsByTagName("float-it")) {
-				const hOption = document.createElement("option");
-				hOption.textContent = el.title;
-				hOption.value = el.title;
-				hList.appendChild(hOption);
+		if(!this.hasAttribute("active")) {
+			var j;
+			for(var i = 0; i < Floater.Order.length; ++ i) {
+				if(this == Floater.Order[i])
+					j = i;
 			}
-			hList.size = hList.length;
+			if(isNaN(j))
+				return;
+			Floater.Order.push(Floater.Order.splice(j, 1)[0]);
+			j = 100 - Floater.Order.length;
+			for(var el of Floater.Order) {
+				el.style.zIndex = ++ j;
+				el.removeAttribute("active");
+			}
+			this.setAttribute("active", null);
+			if(Floater.ListFor) {
+				var	hList = document.getElementById(Floater.ListFor);
+				hList.length = 0;
+				for(const el of document.getElementsByTagName("float-it")) {
+					const hOption = document.createElement("option");
+					hOption.textContent = el.title;
+					hOption.value = el.title;
+					hList.appendChild(hOption);
+				}
+				hList.size = hList.length;
+			}
 		}
 	}
 	arange() {
@@ -198,7 +230,7 @@ float-it header {
 	padding		:0 0 0 0;
 	width		:100%;
 }
-float-it:last-child header {
+float-it[active] header {
 	background	:linear-gradient(90deg, navy, #10B4D0);
 }
 
