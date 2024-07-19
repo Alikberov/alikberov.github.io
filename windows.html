@@ -12,10 +12,13 @@ const	scripts_list = [
 ];
 
 function script_loaded() {
+	var	hfbs = document.getElementById("FireBaseStatus");
+	hfbs.title = `${scripts_counter} scripts left`;
 	console.log(`${-- scripts_counter} scripts left`);
 	if(!scripts_counter) {
 		document.getElementById("DoFloating").checked = true;
 		[...document.getElementsByTagName("float-it")].pop().bringToTop();
+		hfbs.title = "Firebase is ready!";
 		Connect();
 	}
 }
@@ -29,6 +32,7 @@ for(script_url of scripts_list) {
 }
 
 function Connect() {
+	Floater.prototype.arrange();
 }
 </script>
 
@@ -36,25 +40,23 @@ function Connect() {
 class Floater extends HTMLElement {
 	static #ListFor = null;
 	static #Order = null;
+	static isClone = null;
 	constructor() {
 		super();
-	}
-	connectedCallback() {
-		var	x1, y1;
-		if(this.querySelector("header"))
+		var	x1, y1;	// Координаты курсора относительно перемещаемого окна
+		this.root = this.attachShadow({mode: "open"});
+		this.wrapper = document.createElement("slot");
+		// Создаём элемент заголовка окна (CAPTION)
+		this.header = document.createElement("header");
+		this.header.className = "float-it-header";
+		this.root.appendChild(this.header);
+		this.root.appendChild(this.wrapper);
+		this.root.append(
+			document.getElementById('tmpl').content.cloneNode(true));
+		if(Floater.isClone) {
 			return;
-		if(!Floater.Order)
-			Floater.Order = [];
-		Floater.Order.push(this);
-		const	hHeader = document.createElement("header");
-		this.className = "floater";
-		this.appendChild(hHeader);
-		this.open = true;
-		if(this.hasAttribute("for"))
-			Floater.ListFor = this.getAttribute("for");
-		hHeader.textContent = this.title;
-		this.addEventListener("pointerdown", this.bringToTop);
-		hHeader.addEventListener("pointerdown",
+		}
+		this.header.addEventListener("pointerdown",
 			(function(evt) {
 				document.body.setPointerCapture(evt.pointerId);
 				document.body.onpointermove = onMouseMove.bind(this);
@@ -63,6 +65,7 @@ class Floater extends HTMLElement {
 				evt.preventDefault();
 			}).bind(this)
 		);
+		// Добавляем обработчик события отпускания заголовка окна
 		document.body.addEventListener("pointerup",
 			(function(evt) {
 				document.body.onpointermove = null;
@@ -73,6 +76,11 @@ class Floater extends HTMLElement {
 			this.style.left = `${this.offsetLeft}px`;
 			this.style.top = `${this.offsetTop}px`;
 		}).bind(this), 0);
+		this.addEventListener("pointerdown", this.bringToTop);
+		if(Floater.Order)
+			Floater.Order.push(this);
+		else
+			Floater.Order = [this];
 		function onMouseMove(evt) {
 			const	x = evt.clientX - x1;
 			const	y = evt.clientY - y1;
@@ -81,13 +89,38 @@ class Floater extends HTMLElement {
 			evt.preventDefault();
 		}
 	}
+	adoptedCallback() {
+		alert(this);
+	}
+	connectedCallback() {
+		this.className = "floater";
+		this.enumerate();
+	}
 	disconnectedCallback() {
+		for(const i in Floater.Order) {
+			if(Floater.Order[i] == this) {
+				Floater.Order.splice(i, 1);
+				return;
+			}
+		}
 	}
 	static get observedAttributes() {
-		return "".split(/\s+/);
+		return "for title".split(/\s+/);
 	}
 	attributeChangedCallback(name, oldValue, newValue) {
 		// вызывается при изменении одного из перечисленных выше атрибутов
+		switch(name) {
+		case "for":
+			// Если имеется ссылка на элемент стека окон, регистрируем
+			if(Floater.isClone)
+				return;
+			Floater.ListFor = newValue;
+			this.enumerate();
+			break;
+		case "title":
+			this.header.textContent = this.title;
+			break;
+		}
 	}
 	getStyle(styleProp) {
 		if(window.getComputedStyle)
@@ -120,8 +153,13 @@ class Floater extends HTMLElement {
 				el.removeAttribute("active");
 			}
 			this.setAttribute("active", null);
-			if(Floater.ListFor) {
-				var	hList = document.getElementById(Floater.ListFor);
+			this.enumerate();
+		}
+	}
+	enumerate() {
+		if(Floater.ListFor) {
+			var	hList = document.getElementById(Floater.ListFor);
+			if(hList) {
 				hList.length = 0;
 				for(const el of Floater.Order) {
 					const hOption = document.createElement("option");
@@ -133,22 +171,58 @@ class Floater extends HTMLElement {
 			}
 		}
 	}
-	arange() {
+	arrange() {
 		var	hFlag = document.getElementById("DoFloating");
 		var	flag = hFlag.checked;
-		hFlag.checked = false;
-		for(const el of document.getElementsByTagName("float-it")) {
-			var box = el.getBoundingClientRect();
-			el.style.left = `${box.left}px`;
-			el.style.top = `${box.top}px`;
+		var	hSlot = document.createElement("div");
+		hSlot.style.position = "absolute";
+		hSlot.style.left = "0px";
+		hSlot.style.top = "0px";
+		Floater.isClone = true;
+		for(const el of [...Floater.Order]) {
+			var	hClone = el.cloneNode();
+			hClone.innerHTML = el.innerHTML;
+			for(const chld of hClone.children)
+				chld.id = "";//`${el.id}__clone`;
+			hSlot.appendChild(hClone);
 		}
+		hFlag.checked = false;
+		document.body.appendChild(hSlot);
+		Floater.isClone = false;
+		var i = 0;
+		for(const el of hSlot.getElementsByTagName("float-it")) {
+			var box = el.getBoundingClientRect();
+			var org = Floater.Order[i ++];
+			org.style.left = `${box.x}px`;
+			org.style.top = `${box.y}px`;
+		}
+		hSlot.remove();
 		hFlag.checked = flag;
 	}
 }
 
 customElements.define("float-it", Floater);
-
 </script>
+
+<style>
+  user-card {
+    --user-card-field-color: green;
+  }
+</style>
+
+<template id="tmpl">
+	<style>
+	.float-it-header {
+		background	:var(--float-header-background, blue);
+		color		:var(--float-header-color, white);
+		cursor		:move;
+		display		:block;
+		margin		:0 0 0 0;
+		padding		:0 0 0 0;
+		width		:100%;
+	}
+	</style>
+</template>
 
 <style>
 :root {
@@ -216,6 +290,7 @@ float-it {
 	margin		:0 0 0 0;
 	padding		:0 0 0 0;
 	position	:static;
+	--float-header-background:linear-gradient(90deg, grey, #B5B5B5);
 }
 float-it pre {
 	overflow	:auto;
@@ -230,8 +305,8 @@ float-it header {
 	padding		:0 0 0 0;
 	width		:100%;
 }
-float-it[active] header {
-	background	:linear-gradient(90deg, navy, #10B4D0);
+float-it[active] {
+	--float-header-background:linear-gradient(90deg, navy, #10B4D0);
 }
 
 select#FloatList {
@@ -245,9 +320,10 @@ video {
 </head>
 
 <body>
-<input id=DoFloating type=checkbox />
+<input id=DoFloating type=checkbox checked />
+<float-it id=FireBaseStatus title='Firebase' drown></float-it>
 <float-it title='Windows' for=FloatList drown>
-<label for=DoFloating>Change Mode</label><button onclick='this.parentElement.arange()'>Arange</button>
+<label for=DoFloating>Change Mode</label><button onclick='this.parentElement.arrange()'>Arrange</button>
 <select id=FloatList></select>
 </float-it>
 <float-it title='Window "Div"'><div>Div-Tag</div></float-it>
