@@ -1,0 +1,2861 @@
+<!doctype html>
+<html itemscope='' itemtype='http://schema.org/SearchResultsPage' lang='ru'		  >
+<head											  >
+<meta content='text/html; charset=utf-8'		http-equiv='Content-Type'	 />
+<meta content='ru-RU'					http-equiv='Content-Language'	 />
+<meta content='keyboard,illumination,led,leds,effect,effects,fx,braile'	name='keywords'	 />
+<meta content='Static'							name='googlebot' />
+<meta content='NoIndex,NoArchive'					name='Robots'	 />
+<meta content='http://github.com/Alikberov'				name='Author'	 />
+<meta description='Glazeur-Scenarist'							 />
+<!--meta http-equiv=refresh content='3'>						<!--	-->
+<title>Glazeur-scripting</title>
+<style>
+body	{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+}
+a	{
+	border		:blue thin outset;
+}
+pre#leds{
+	background-color:grey;
+}
+td.operator	{
+	border		:white thin outset;
+	cursor		:pointer;
+	font-family	:"Segoe UI Emoji";
+	font-size	:28px;
+}
+td.switch_1	{
+	background-color:yellow;
+	border		:white thin outset;
+	cursor		:pointer;
+	font-family	:"Segoe UI Emoji";
+	font-size	:28px;
+}
+td.switch_2	{
+	background-color:cyan;
+	border		:white thin outset;
+	cursor		:pointer;
+	font-family	:"Segoe UI Emoji";
+	font-size	:28px;
+}
+td.switch_3	{
+	background-color:magenta;
+	border		:white thin outset;
+	cursor		:pointer;
+	font-family	:"Segoe UI Emoji";
+	font-size	:28px;
+}
+textarea{
+	font-family	:"Courier New";
+	font-size	:18px;
+}
+</style>
+<script>
+/****************************************************************
+****************************************************************/
+function	WCHAR(str) {
+	var
+		ptr	= 0,
+		string	= str;
+	return {
+		set ptr(seek)	{	// seek to position
+			ptr = seek;
+		},
+		set concat(str)	{
+			string += str;
+		},
+		get ptr()	{	// get the position
+			return ptr;
+		},
+		get str()	{	// get string by position
+			return string.substr(ptr);
+		},
+		get c_ptr()	{	// char by pointer
+			return string.charAt(ptr);
+		},
+		get a_ptr()	{	// ascii by pointer
+			return string.charCodeAt(ptr);
+		},
+		get arr_ptr()	{	// ascii by pointer
+			return [string.charCodeAt(ptr), string.charCodeAt(ptr + 1)];
+		},
+		get c_ptr_pp()	{	// char by pointer with post-increment
+			return string.charAt(ptr ++);
+		},
+		get a_ptr_pp()	{	// ascii by pointer with post-increment
+			return string.charCodeAt(ptr ++);
+		},
+		get c_pp_ptr()	{	// char by pointer with pre-increment
+			return string.charAt(++ ptr);
+		},
+		get a_pp_ptr()	{	// ascii by pointer with pre-increment
+			return string.charCodeAt(++ ptr);
+		}
+	};
+}
+////////////////////////////////////////////////////////////////////////////////
+function	Variation(tmp) {
+	var	now = tmp[0], min = tmp[1], max = tmp[2], rnd = Math.random();
+	if(min > max)
+		return now - (now - (max + (min - max) / 5));
+	if(now < min)
+		return now + (max - now) * (rnd * 10) / 19;
+	if(now > max)
+		return now - (now - min) * (rnd * 10) / 19;
+	return now - (now - (min + (max - min) * (rnd * 10) / 10)) / 10;
+}
+function Acting(This, Man) {
+	var	tmp = Man.role;
+	while(tmp.length) {
+		if(tmp[0][0] == "@") {
+			tmp[0][0] = "";
+			setTimeout(This.Next.bind(This, Man), Variation([tmp[0][1], tmp[0][1], tmp[0][2]]) * 1000);
+		} else
+		if(tmp[0][1] != "" && (tmp[0][1] in This)) {
+			Man.acts.push([tmp[0][1], tmp[0][2]]);
+			tmp.shift();
+			continue;
+		} else
+		if(tmp[0][0] != "" && (tmp[0][0] in This)) {
+			if(tmp[0][1] < 0)
+				This[tmp[0][0]][0] = tmp[0][2];
+			else
+				This[tmp[0][0]][1] = tmp[0][1],
+				This[tmp[0][0]][2] = tmp[0][2];
+			tmp.shift();
+			continue;
+		}
+		return;
+	}
+}
+function Automatic(ths) {
+	var	tmp = ths.role;
+	while(tmp.length > 0) {
+		if(tmp[0][0] == "@") {
+			tmp[0][0] = "";
+			ths[":Стабильность"][0] = Variation([tmp[0][1], tmp[0][1], tmp[0][2]]) * 1000;
+			setTimeout(ths.Clear.bind(ths), ths[":Стабильность"][0]);
+		} else
+		if(tmp[0][0] != "" && (tmp[0][0] in ths)) {
+			if(tmp[0][1] < 0)
+				ths[tmp[0][0]][0] = tmp[0][2];
+			else
+				ths[tmp[0][0]][1] = tmp[0][1],
+				ths[tmp[0][0]][2] = tmp[0][2];
+			tmp.shift();
+			continue;
+		}
+		return;
+	}
+}
+
+var	cnv	= null,
+	c2d	= null;
+var	Bitmaps	= [];
+
+var	gif	= null;
+var	gifTimes= 0,
+	gifEach	= 1,
+	gifBegin= 0;
+
+function gifCreate() {
+	if(!gif) {
+		try {
+			gif = new GIFEncoder();
+			gif.setRepeat(0); //auto-loop
+			gif.setDelay(100 * gifEach);
+			gif.start();
+			document.getElementById("Process").innerHTML = "BUFFERING...";
+		} catch(e) {
+			document.getElementById("Process").innerHTML = "ERROR: GIF Encoder not found...";
+			Bitmaps.length = 0;
+			document.getElementById("Progress").style.display = "none";
+			return;
+		}
+	}
+	if(Bitmaps.length) {
+		var	tmp = Bitmaps.shift();
+		document.getElementById("cartoon").src = tmp.src;
+		CINEMA.shootx.drawImage(tmp, 0, 0, CINEMA.shoots.width, CINEMA.shoots.height, 0, 0, CINEMA.shoots.width, CINEMA.shoots.height);
+		gif.addFrame(CINEMA.shootx);
+		setTimeout(gifCreate, 1);
+		document.getElementById("Progress").value = Bitmaps.length;
+		if(Bitmaps.length == 0)
+			document.getElementById("Process").innerHTML = "ENCODING...";
+	} else {
+		document.getElementById("Progress").style.display = "none";
+		document.getElementById("Capture").style.display = "inline-block";
+		if(gif) {
+			gif.finish();
+			document.getElementById("cartoon").src = "data:image/gif;base64,"+encode64(gif.stream().getData());
+			var url = document.getElementById("cartoon").src.replace(/^data:image\/[^;]+/, 'data:application/octet-stream');
+			var wnd = window.open(url, "Animation");
+			document.getElementById("Uploader").href = url;
+			document.getElementById("Process").innerHTML = "CARTOON";
+			delete gif;
+			gif = null;
+		}
+	}
+}
+
+var	clouds	= [{
+		x	:160,	// cloud position
+		y	:25,	// cloud position
+		z	:3,	// cloud farness
+		w	:20,	// cloud width
+		h	:5,	// cloud height
+		n	:7,	// cottons number
+		r1	:2,	// noise factor
+		r2	:10,	// fitness factor
+		r3	:20,	// fatness factor
+		x1	:0,	// drugness factor
+		y1	:0,	// drugness factor
+	}];
+
+function actor_cloud_new(w, h, rainy) {
+	return {
+		x	:(Math.random() + 1) * w * 1,
+		y	:(Math.random() + 1) * h / 10,
+		z	:Math.random() * 5,
+		w	:w / 6,
+		h	:h / 48,
+		n	:7,
+		d	:rainy,
+		r1	:5,
+		r2	:10,
+		r3	:20,
+		x1	:0,
+		y1	:0
+	};
+}
+
+function ru_casing(dst, troupe) {
+	if(!(dst in troupe))
+		if((tmp = dst.replace(/(\S+)[аеу]\s(\S+)/, "$1 $2")) in troupe)
+			return tmp;
+		else
+		if((tmp = dst.replace(/(\S+)[аеу]\s(\S+)[аеу]/, "$1 $2")) in troupe)
+			return tmp;
+	return tmp;
+}
+
+function gradient(from, last, seek) {
+	return {
+		r	:from.r + (last.r - from.r) * seek,
+		g	:from.g + (last.g - from.g) * seek,
+		b	:from.b + (last.b - from.b) * seek
+	}
+}
+
+function parse_emotion(emotion, size) {
+	switch(emotion) {
+	case ":)": case ":-)":
+		return {las: 0,		// Left eye Angle Start
+			laf: 360, 	// Left eye Angle Finish
+			lhr: size / 7,	// Left eye Horizontal Radius
+			lvr: size / 9,	// Left eye Vertical Radius
+			ras: 0,		// Right eye Angle Start
+			raf: 360, 	// Right eye Angle Finish
+			rhr: size / 7,	// Right eye Horizontal Radius
+			rvr: size / 9,	// Right eye Vertical Radius
+			mas: 180,	// Mouth Angle Start
+			maf: 360,	// Mouth Angle Finish
+			mhr: size / 5,	// Mouth Horizontal Radius
+			mvr: size / 9,	// Mouth Vertical Radius
+			};
+	case ":D": case ":-D":
+		return {las: 0,		laf: 180,	lhr: size / 7,	lvr: size / 9,
+			ras: 0,		raf: 180,	rhr: size / 7,	rvr: size / 9,
+			mas: 180,	maf: 360,	mhr: size / 5,	mvr: size / 6};
+	case ":(": case ":-(":
+		return {las: 0,		laf: 360,	lhr: size / 7,	lvr: size / 9,
+			ras: 0,		raf: 360,	rhr: size / 7,	rvr: size / 9,
+			mas: 0,		maf: 180,	mhr: size / 5,	mvr: size / 9};
+	case ":o": case ":-o":
+		return {las: 0,		laf: 360,	lhr: size / 6,	lvr: size / 8,
+			ras: 0,		raf: 360,	rhr: size / 6,	rvr: size / 8,
+			mas: 0,		maf: 360,	mhr: size / 5,	mvr: size / 6};
+	case ":/": case ":-/":
+		return {las: 0,		laf: 360,	lhr: size / 5,	lvr: size / 7,
+			ras: 0,		raf: 360,	rhr: size / 7,	rvr: size / 9,
+			mas: 30,	maf: 210,	mhr: size / 5,	mvr: size / 6};
+	case ":p": case ":-p":
+		return {las: 0,		laf: 360,	lhr: size / 7,	lvr: size / 9,
+			ras: 0,		raf: 360,	rhr: size / 7,	rvr: size / 9,
+			mas: 200,	maf: 380,	mhr: size / 5,	mvr: size / 6};
+	}
+	return null;
+}
+function kinematic_line(ctx, x1, y1, x3, y3, limit, vx, vy) {
+	var	dx = x3 - x1, dy = y3 - y1;
+	var	len = Math.max(Math.abs(dx), Math.abs(dy)), rad;
+	if(len >= 2 * limit)
+		return ctx.lineTo(x1 + 2 * dx / len * limit, y1 + 2 * dy / len * limit);
+	x2 = x1 + dx / 2, y2 = y1 + dy / 2;
+	rad = Math.sqrt(dx * dx + dy * dy) / 2;
+	rad = Math.sqrt(limit * limit - rad * rad);
+	x2 += vx * dy / len * rad, y2 += vy * dx / len * rad;
+	ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+}
+function actor_man(cnv, ctx, man, emotion) {
+	var	h = cnv.height / (man.age < 16 ? 8 - man.age / 3 : 3) / ((man.position.z / 10) + 1);
+	var	cx = cnv.width / 2 + man.position.x, cy = cnv.height - man.position.y - man.position.j * h / 2 - man.position.z * 2;
+	var	w = man.fat * h / 5;
+	var	lx, ly, rx, ry, px, py, hx, hy, hl;	// Left/Right legs / Pelvis x/y / Hands x/y
+	var	left, rift;
+	var	a, b, sine, cose, dx, dy, dz;
+	var	emoji = parse_emotion(emotion, w);
+	left = man.step >= 540 ? man.phase + 180 : man.phase - 540;
+	rift = man.step >= 540 ? man.phase + 180 + 180 : man.phase - 540 - 180;
+	man.phase = (man.phase % 360 + man.step + 360) % 360;
+	man.position.x = man.step < -180 ? man.position.x + (man.step + 180) % 360 / 10 : man.step >= 180 ? man.position.x + (man.step - 180) % 360 / 10 : man.position.x;
+	ctx.strokeWidth = 2;
+	ctx.strokeStyle = "black";
+	ctx.fillStyle = "white";
+	ctx.beginPath();
+	ctx.ellipse(cx, cy - h + w / 2, w / 2, w / 2, 0, Math.PI * 2, 0, true);
+	ctx.closePath(); ctx.stroke(); ctx.fill();
+	if(emoji) {
+		tmp = Math.random() * 100 > 95 ? 0.125 : 1;
+		ctx.lineWidth = 1 / 2;
+		ctx.beginPath();
+		ctx.ellipse(cx - w / 4, cy - h + w / 3, emoji.lhr, emoji.lvr * tmp, 0, emoji.las * Math.PI / 180, emoji.laf * Math.PI / 180, true);
+		ctx.closePath(); ctx.stroke(); ctx.beginPath();
+		ctx.ellipse(cx + w / 4, cy - h + w / 3, emoji.rhr, emoji.rvr * tmp, 0, emoji.ras * Math.PI / 180, emoji.raf * Math.PI / 180, true);
+		ctx.closePath(); ctx.stroke(); ctx.beginPath();
+		ctx.ellipse(cx, cy - h + w * 5 / 7, emoji.mhr, emoji.mvr, 0, emoji.mas * Math.PI / 180, emoji.maf * Math.PI / 180, true);
+		ctx.closePath(); ctx.stroke();
+	}
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	a = Math.PI * 75 / 360;
+	hx = Math.cos(a) * w / 2,
+	hy = cy - Math.sin(a) * h / 6 - h / 2 - w / (10 / 6);
+	ctx.ellipse(cx, cy - h / 2 - w / (10 / 6), w / 2, h / 6, 0, 0, Math.PI * 2, true);
+	hx1 = cx + hx, hy1 = hy, hx3 = hx1 + man.members.lhx * h / 8, hy3 = hy1 - man.members.lhy * h / 8;
+	a = hx1 < hx3 ? +1 : -1;
+	ctx.moveTo(hx1, hy1); kinematic_line(ctx, hx1, hy1, hx3, hy3, h / 8, -1 * a, +1 * a);
+	hx1 = cx - hx, hy1 = hy, hx3 = hx1 + man.members.rhx * h / 8, hy3 = hy1 - man.members.rhy * h / 8;
+	a = hx1 < hx3 ? -1 : +1;
+	ctx.moveTo(hx1, hy1); kinematic_line(ctx, hx1, hy1, hx3, hy3, h / 8, +1 * a, -1 * a);
+	ctx.stroke();
+	ctx.beginPath();
+	px = cx, py = cy - h / 2 - w / (10 / 6) + h / 6;
+	a = (left % 360 + 360) % 360;
+	sine = a < 180 ? Math.sin(a * Math.PI / 180) : 0;
+	cose = Math.cos(a * Math.PI / 180);
+	lx = cx - w / 3 * cose, ly = cy - w / 5 - w / 2 * sine;
+	ctx.ellipse(lx, ly, w / 3, w / 5, 0, Math.PI * 2, 0, true);
+	ctx.closePath(); ctx.stroke(); ctx.beginPath();
+	a = (rift % 360 + 360) % 360;
+	sine = a < 180 ? Math.sin(a * Math.PI / 180) : 0;
+	cose = Math.cos(a * Math.PI / 180);
+	rx = cx - w / 3 * cose, ry = cy - w / 5 - w / 2 * sine;
+	ctx.ellipse(rx, ry, w / 3, w / 5, 0, Math.PI * 2, 0, true);
+	ctx.closePath(); ctx.stroke(); ctx.beginPath();
+	lx = man.step < -180 ? lx + w / 3 : man.step >= 180 ? lx - w / 3 : lx;
+	ly = ly - w / 6;
+	rx = man.step < -180 ? rx + w / 3 : man.step >= 180 ? rx - w / 3 : rx;
+	ry = ry - w / 6;
+	ctx.moveTo(lx, ly);
+	if(man.step < -180)
+		ctx.bezierCurveTo(lx - 10, ly - (ly - py) / 2, lx - 10, ly - (ly - py) / 2, px, py);
+	else
+	if(man.step >= 180)
+		ctx.bezierCurveTo(lx + 10, ly - (ly - py) / 2, lx + 10, ly - (ly - py) / 2, px, py);
+	else
+		ctx.lineTo(px, py);
+	ctx.moveTo(rx, ry);
+	if(man.step < -180)
+		ctx.bezierCurveTo(rx - 10, ry - (ry - py) / 2, rx - 10, ry - (ry - py) / 2, px, py);
+	else
+	if(man.step >= 180)
+		ctx.bezierCurveTo(rx + 10, ry - (ry - py) / 2, rx + 10, ry - (ry - py) / 2, px, py);
+	else
+		ctx.lineTo(px, py);
+	ctx.stroke();
+	return {x: cx, y:cy - h};
+}
+// Рисуем небо:    контекст, часы, месяц, яркость
+function actor_sky(cnv, ctx, hour, month, bright) {
+	var	seasons = [
+			{ sky:{ day:{ r:224, g:240, b:255 }, night:{ r:32, g:48, b:128 }, morning:{ r:176, g:192, b:192 }, evening:{ r:192, g:160, b:128 } } }	// winter
+		,	{ sky:{ day:{ r:240, g:248, b:248 }, night:{ r:48, g:64, b:128 }, morning:{ r:184, g:184, b:192 }, evening:{ r:160, g:192, b:128 } } }	// spring
+		,	{ sky:{ day:{ r:255, g:255, b:224 }, night:{ r:64, g:96, b:128 }, morning:{ r:192, g:176, b:160 }, evening:{ r:192, g:160, b:128 } } }	// summer
+		,	{ sky:{ day:{ r:248, g:255, b:240 }, night:{ r:48, g:64, b:128 }, morning:{ r:184, g:184, b:192 }, evening:{ r:192, g:128, b:96 } } }	// autumn
+		];
+	var	sunrise = Math.sin((month + 2) * Math.PI / 12) * 2 + 4;
+	var	sunset = Math.sin((month + 2) * Math.PI / 12) * 2 + 18;
+	var	quarter = Math.floor((month + 11) % 12 / 3);
+	var	quartnext = Math.floor(month % 12 / 3);
+	var	zenith = (Math.sin((month - 1) * Math.PI / 12) + 1) * (cnv.height * 3 / 8);	// Высота солнца в зените сезона
+	var	sun_x = (Math.sin(hour * Math.PI / 12) + 1) * cnv.width / 2;
+	var	sun_y = Math.cos(hour * Math.PI / 12) * zenith + cnv.height * 2 / 3;
+	var	moon_x = (-Math.sin(hour * Math.PI / 12) + 1) * cnv.width / 2;
+	var	moon_y = (-Math.cos(hour * Math.PI / 12) + 7 / 5) * cnv.width / 2;
+	var	rgb, morning, day, evening, night;
+	var	season = seasons[quarter];
+	var	seasonext = seasons[quartnext];
+	morning = gradient(season.sky.morning, seasonext.sky.morning, (month + 11) % 3 / 3);
+	day = gradient(season.sky.day, seasonext.sky.day, (month + 11) % 3 / 3);
+	evening = gradient(season.sky.evening, seasonext.sky.evening, (month + 11) % 3 / 3);
+	night = gradient(season.sky.night, seasonext.sky.night, (month + 11) % 3 / 3);
+	if(hour > sunset || hour < sunrise)
+		rgb = night;
+	else {
+		rgb = day;
+		if(hour < sunrise + 2)	// Два часа до утра
+			if(hour < sunrise + 1)	// За час до рассвета
+				rgb = gradient(night, morning, (hour - sunrise));
+			else			// Утро переходит в день
+				rgb = gradient(morning, rgb, (hour - sunrise - 1));
+		if(hour > sunset - 2)	// Два часа до вечера
+			if(hour > sunset - 1)	// Вечер переходит в ночь
+				rgb = gradient(evening, night, (hour - (sunset - 1)));
+			else			// За час до заката
+				rgb = gradient(rgb, evening, (hour - (sunset - 2)));
+	}
+	rgb = gradient(night, rgb, bright / 100);
+	ctx.beginPath();
+	ctx.fillStyle = "rgba("+[Math.floor(rgb.r), Math.floor(rgb.g), Math.floor(rgb.b)].join()+",100)";
+	ctx.fillRect(0, 0, cnv.width, cnv.height);
+	ctx.closePath();
+	ctx.beginPath();
+	//ctx.strokeStyle = sun_y > 0 ? "rgba(64,64,"+Math.floor(92+bright)+",100)" : "rgba("+[r,g,b].join()+",100)";
+	ctx.fillStyle = "rgba(" + [Math.floor(255*bright/100),Math.floor(255*bright/100),0*192*bright/100].join() + ",1)";
+	ctx.ellipse(sun_x, sun_y, zenith / 6, zenith / 6, 0, Math.PI * 2, 0, false);
+	ctx.closePath();
+	ctx.stroke();
+	ctx.fill();
+	ctx.beginPath();
+	ctx.fillStyle = "white";
+	ctx.ellipse(moon_x, moon_y, cnv.height / 16, cnv.height / 16, 0, Math.PI * 2, 0, false);
+	ctx.closePath();
+	ctx.fill();
+}
+
+// Рисуем облако:  контекст, облако, позиция, ветер, капли
+function actor_cloud(cnv, ctx, cloud, x0, windy, d, text, xm, ym, yy) {
+	var	x, y, z, w, h, n, d, r1, r2, r3;
+	var	i, a, x1, y1, x2, y2, x3, y3, r, r0, tmp;
+	var	a1, a2, arr = [];
+	var	tx, ty, tw = 0, th, tl = 0;
+	if(text) {
+		th = parseInt(ctx.font, 10);
+		for(tmp in text) {
+			w = ctx.measureText(text[tmp]).width;
+			if(tw < w)
+				tw = w;
+			if(tl < text[tmp].length)
+				tl = text[tmp].length;
+		}
+		cloud.x = xm,
+		cloud.y = yy,
+		cloud.z = 0;
+		cloud.w = tw * 0.625,
+		cloud.h = (th * text.length) * 0.4;
+		cloud.r1 = 2,
+		cloud.r2 = 10,
+		cloud.r3 = 20;
+		cloud.n = Math.floor(tl * 0.75);
+		cloud.x1 = 0,
+		cloud.y1 = 0;
+	}
+	cloud.x1 += Math.random() * windy / 10 + windy / 5;
+	cloud.y1 += Math.random() * windy / 10 + windy / 5;
+	cloud.x1 = cloud.x1 % (windy / 5 + 1), cloud.y1 = cloud.y1 % (windy / 5 + 1);
+	x = cloud.x + cloud.x1, y = cloud.y + cloud.y1, z = 1 + Math.log(cloud.z + 1);
+	w = cloud.w / z, h = cloud.h / z, n = cloud.n;
+	r1 = cloud.r1 / z, r2 = cloud.r2 / z, r3 = cloud.r3 / z;
+	cloud.x -= windy / z;
+	x += x0;
+	n *= 3; a1 = 2 * Math.PI / n / n;
+	a2 = Math.PI / 3;
+	for(i = 0; i < n; ++ i) {
+		a = 2 * Math.PI * i / n + Math.random() * a1 + a2;
+		r = [r3, r3, r2][i % 3] + Math.random() * r1;
+		x1 = Math.cos(a) * (w + r), y1 = Math.sin(a) * (h + r);
+		arr.push({x: x1, y: y1});
+	}
+	ctx.beginPath();
+	ctx.fillStyle = "white";
+	ctx.strokeStyle = "white";
+	ctx.closePath();
+	ctx.stroke();
+	ctx.beginPath();
+	tmp = arr.length - 1;
+	if(text) {
+		ctx.setLineDash([4,1]);
+		ctx.moveTo(xm, ym);
+	} else
+		ctx.moveTo(x+arr[tmp].x, y+arr[tmp].y);
+	while(arr.length) {
+		tmp = arr.shift();
+		x1 = tmp.x, y1 = tmp.y;
+		tmp = arr.shift();
+		x2 = tmp.x, y2 = tmp.y;
+		tmp = arr.shift();
+		x3 = tmp.x, y3 = tmp.y;
+		ctx.bezierCurveTo(x + x1, y + y1, x + x2, y + y2, x + x3, y + y3);
+	}
+	ctx.closePath();
+	ctx.lineWidth = 3 / z;
+	ctx.fillStyle = "rgba("+[Math.floor(255/(d/5+1)),Math.floor(255/(d/4+1)),255].join(",")+",1)";
+	ctx.fill();
+	ctx.strokeStyle = '#0000ff';
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.strokeStyle = "rgba(64,160,255," + (d/100) + ")";
+	ctx.lineWidth = 2 / z;
+	if(d > 10) {
+		for(i = 0; i < 10; ++ i) {
+			ctx.setLineDash([Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)]);
+			x1 = Math.random() + x + w * i / 10;
+			//if(Math.random() * d > i / 2)
+				ctx.moveTo(x1, y + h + Math.random() * h),
+				ctx.lineTo(x1 + 1 * windy, cnv.height);
+		}
+	}
+	ctx.stroke();
+	ctx.setLineDash([]);
+	if(text) {
+		ctx.fillStyle = "black";
+		tx = xm, ty = cloud.y - text.length * th / 2 + th / 2;
+		tmp = ctx.font;
+		ctx.font = "bold " + tmp;
+		for(i = 0; i < text.length; ++ i) {
+			ctx.fillText(text[i], tx - ctx.measureText(text[i]).width / 2, ty);
+			ty += th + Math.random() * 0.625;
+			tx += 0.3125 - Math.random() * 0.625;
+			ctx.font = tmp;
+		}
+		ctx.stroke();
+		return (i + 2.5) * th;
+	}
+}
+/*
+var	RENDER	=
+{
+	"КАМЕРА":
+	{
+	}
+};
+var	ACTOR	=
+{				// KAMERA - the leading participant of stage for whole frame drawing
+	cnv, ctx		// Контекст графического окна
+,	casting	:[]		// Список участников текущей сцены
+,	novel	:[]		// Описание "новеллы"
+,	Keying
+	:function(action)
+	{
+		if(!action)
+			this.novel.shift();
+		else
+			this.novel.push(action);
+	}
+,	Casting
+	:function(actor)
+	{
+		if(!actor) {
+			this.casting.length = 0;
+			return;
+		}
+		this.casting.push(actor);
+	}
+,	Render
+	:function(cnv, ctx)
+	{
+		if(cnv && ctx) {
+			this.cnv = cnv,
+			this.ctx = ctx;
+		}
+		this.casting.forEach
+		(function(actor)
+		{
+			actor.Render(this.cnv, this.ctx);
+		});
+	}
+}
+var	ACTORS	= {};
+ACTORS["КАМЕРА"].Render			// Камера - основной "участник" сцены для отрисовки всего кадра
+
+,	"ПОГОДА":			// Погода - первый "участник" сцены при отрисовки заднего плана
+	{				// WETHER - the first participant in stage for background drawing
+		cnv, ctx
+	,	casting	:[]
+	,	novel	:[]
+	,	
+};
+*/
+var	CINEMA	= {
+		cnv	: null,
+		ctx	: null,
+		shoots	: null,
+		shootx	: null,
+		Actors	: {
+			"КАМЕРА"	:{
+				job		: true,
+				timer		: 0,
+				role		: [],
+				troupe		: [],
+				":Стабильность"	: [0, 0, 0],
+				".Динамика"	: [650, 600, 700],
+				".Участники"	: [],
+				Clear: function() {
+					this.role.shift();
+				},
+				Casted:	function(tmp) {
+					if(tmp) {
+						clearTimeout(this.timer);
+						this.job = true;
+						this.role = [];
+						this.troupe = [];
+					}
+					Automatic(this);
+					for(var id in this) {
+						if(id.charAt(0) == '.')
+							this[id][0] = Variation(this[id]);
+					}
+					tmp = this[".Динамика"][0];
+					if(tmp < 1)
+						this.job = false;
+					if(this.job)
+						this.timer = setTimeout(this.Casted.bind(this), 60000 / tmp);
+					if(gifTimes > 0 && gifBegin > 0) {
+						for(var id in this.troupe)
+							CINEMA.Actors[this.troupe[id]].Render(CINEMA.shoots, CINEMA.shootx);
+						CINEMA.ctx.drawImage(CINEMA.shoots, 0, 0, CINEMA.shoots.width, CINEMA.shoots.height, 0, 0, CINEMA.cnv.width, CINEMA.cnv.height);
+						if(-- gifBegin > 0)
+							return;
+						gifBegin = gifEach;
+						gifTimes --;
+						tmp = new Image();
+						tmp.src = CINEMA.shootx.canvas.toDataURL("image/jpeg",50);
+						document.getElementById("cartoon").src = tmp.src;
+						Bitmaps.push(tmp);
+						document.getElementById("Progress").value = Bitmaps.length;
+						if(gifTimes == 0)
+							gifCreate();
+					} else
+						for(var id in this.troupe)
+							CINEMA.Actors[this.troupe[id]].Render(CINEMA.cnv, CINEMA.ctx);
+				},
+			},
+			"ПОГОДА"	:{
+				job		: true,
+				timer		: 0,
+				role		: [],		// [current, minimum, maximum]
+				clouds		: [],
+				":Стабильность"	: [0, 0, 0],
+				".День"		: [90, 0, 180],
+				".Месяц"	: [6,6,6],
+				".Солнце"	: [0, 45, 85],
+				".Прогноз"	: [0, 5, 5],
+				".Ветерка"	: [0, 5, 5],
+				".Облаков"	: [0, 15, 33],
+				".Осадков"	: [0, 12, 17],
+				".Молний"	: [0, 0, 0],
+				".Динамика"	: [650, 600, 700],
+				".Тумана"	: [0, 45, 85],
+				".Дыма"		: [0, 45, 85],
+				".Пыли"		: [0, 45, 85],
+				Clear: function() {
+					this.role.shift();
+				},
+				Render: function(cnv, ctx) {
+					var day = this[".День"][0];
+					var month = this[".Месяц"][0];
+					var sunny = this[".Солнце"][0];
+					var temper = this[".Прогноз"][0];
+					var lighting = this[".Молний"];
+					actor_sky(cnv, ctx, day, month, Math.random() * lighting[0] >= 10 ? sunny * 2 : sunny);
+					ctx.beginPath();
+					var cloudy = this[".Облаков"][0];
+					var windy = this[".Ветерка"][0];
+					var rainy = this[".Осадков"][0];
+					var drops = rainy;
+					for(tmp = 0; tmp < this.clouds.length; ++ tmp) {
+						if(this.clouds[tmp].x < -cnv.width)
+							this.clouds[tmp] = actor_cloud_new(cnv.width, cnv.height, rainy);
+					}
+					while(this.clouds.length < Math.floor(cloudy))
+						this.clouds.push(actor_cloud_new(cnv.width, cnv.height, rainy));
+					ctx.fillStyle = "white";
+					ctx.strokeStyle = "white";
+					var z = 5;
+					while(z --)
+						for(tmp = 0; tmp < this.clouds.length; ++ tmp) {
+							if(this.clouds[tmp].x < -cnv.width / 2) {
+								this.clouds.splice(tmp --, 1);
+								continue;
+							}
+							if(Math.floor(this.clouds[tmp].z) == z)
+								actor_cloud(cnv, ctx, this.clouds[tmp], 0, windy, Math.floor(rainy)),
+								rainy -= 1 / (1 + 3 * cloudy);
+						}
+				},
+				Casted:	function(tmp) {
+					if(tmp) {
+						clearTimeout(this.timer);
+						this.job = true;
+						this.role = [];
+					}
+					Automatic(this);
+					for(var id in this) {
+						if(id.charAt(0) == '.')
+							this[id][0] = Variation(this[id]);
+					}
+					tmp = this[".Динамика"][0];
+					if(tmp < 1)
+						this.job = false;
+					if(this.job)
+						this.timer = setTimeout(this.Casted.bind(this), 60000 / tmp);
+				},
+			},
+			"ГОРОД":{
+				job		: true,
+				velocity	: 5,
+				role		: [],		// [current, minimum, maximum]
+				":Стабильность"	: [0, 0, 0],
+				".Свет"		: [0, 5, 5],
+				".Шум"		: [0, 5, 5],
+				".Криминал"	: [0, 5, 5],
+				Clear: function() {
+					this.role.shift();
+				},
+				Casted:	function(tmp) {
+					if(tmp) {
+						clearTimeout(this.timer);
+						this.job = true;
+						this.role = [];
+					}
+					if(this.job)
+						this.timer = setTimeout(this.Casted.bind(this), 1000 / this.velocity);
+					Automatic(this);
+					for(var id in this) {
+						if(id.charAt(0) == '.')
+							this[id][0] = Variation(this[id]);
+					}
+				},
+			},
+			"ТРАФИК":{
+				job		: true,
+				velocity	: 5,
+				role		: [],		// [current, minimum, maximum]
+				cars		: [],
+				":Стабильность"	: [0, 0, 0],
+				".Свет"		: [0, 5, 5],
+				".Шум"		: [0, 5, 5],
+				".Насыщенность"	: [0, 5, 5],
+				".Аварий"	: [0, 5, 5],
+				Clear: function() {
+					this.role.shift();
+				},
+				Casted:	function(tmp) {
+					if(tmp) {
+						clearTimeout(this.timer);
+						this.job = true;
+						this.role = [];
+					}
+					if(this.job)
+						this.timer = setTimeout(this.Casted.bind(this), 1000 / this.velocity);
+					Automatic(this);
+					for(var id in this) {
+						if(id.charAt(0) == '.')
+							this[id][0] = Variation(this[id]);
+					}
+					var autos = this[".Насыщенность"][0];
+					while(this.cars.length < Math.floor(autos))
+						this.cars.push({
+							x	:CINEMA.cnv.width,
+							z	:CINEMA.cnv.height * 0.75 + Math.random() * 25,
+							s	:Math.random() * CINEMA.cnv.width / 16
+							}
+						);
+					CINEMA.ctx.fillStyle = "white";
+					CINEMA.ctx.strokeStyle = "white";
+					for(tmp = 0; tmp < Math.floor(autos); ++ tmp) {
+						CINEMA.ctx.beginPath();
+						var car = this.cars[tmp];
+						car.x -= CINEMA.cnv.width / 1000;
+						if(car.x < -CINEMA.cnv.width / 16)
+							car.x += CINEMA.cnv.width * 1.0625;
+						CINEMA.ctx.fillRect(car.x, car.z, CINEMA.cnv.width / 64, CINEMA.cnv.height / 48);
+						CINEMA.ctx.closePath();
+					}
+					CINEMA.ctx.stroke();
+				},
+			},
+			"ЧЕЛОВЕК ":{
+				job		: true,
+				velocity	: 5,
+				row		: 0,
+				role		: [],		// [current, minimum, maximum]
+				troupe		: [],
+				":Стабильность"	: [0, 0, 0],
+				".Акт"		: {
+					"Шагать"	: function(Man, cnv, ctx, data, troupe) {
+						var	dst = data.slice(1).join(" ");
+						var	radius, dx, dy, follow, escape;
+						if((dst in troupe) && ("position" in troupe[dst])) {
+							dx = (troupe[dst].position.x - Man.position.x);
+							dy = (troupe[dst].position.y - Man.position.y);
+							radius = Math.sqrt(dx * dx + dy * dy);
+							follow = (data[0] == "в" || data[0] == "к" || data[0] == "до" || data[0] == "на");
+							escape = ((data[0] == "из" || data[0] == "от") && (dst in troupe) && ("position" in troupe[dst]));
+							if(follow || escape)
+								if(follow)
+									Man.step = dx < 0 ? -180 - radius / 6 : radius / 6 + 180;
+								else
+									Man.step = dx > 0 ? -180 - radius / 6 : radius / 6 + 180;
+						}
+					},
+					"Бежать"	: function(Man, cnv, ctx, data, troupe) {
+						var	dst = data.slice(1).join(" ");
+						var	radius, dx, dy, follow, escape;
+						if((dst in troupe) && ("position" in troupe[dst])) {
+							dx = (troupe[dst].position.x - Man.position.x);
+							dy = (troupe[dst].position.y - Man.position.y);
+							radius = Math.sqrt(dx * dx + dy * dy);
+							follow = (data[0] == "в" || data[0] == "к" || data[0] == "до" || data[0] == "на");
+							escape = ((data[0] == "из" || data[0] == "от") && (dst in troupe) && ("position" in troupe[dst]));
+							if(follow || escape)
+								if(follow)
+									Man.step = dx < 0 ? -180 - radius / 3 : radius / 3 + 180;
+								else
+									Man.step = dx > 0 ? -180 - radius / 3 : radius / 3 + 180;
+						}
+					},
+					"Махать"	: function(Man, cnv, ctx, data, troupe) {
+						var	a = Man.hands * Math.PI / 180;
+						Man.members.lhx = Math.cos(a);
+						Man.members.lhy = Math.sin(a);
+						Man.members.rhx = -Math.cos(a);
+						Man.members.rhy = Math.sin(a);
+						Man.hands = (Man.hands % 360 + 360 + 15) % 360;
+					},
+					"Прыгать"	: function(Man, cnv, ctx, data, troupe) {
+						var	j = Math.sin(Man.phase) * 5 / 3;
+						Man.position.j += Man.position.j < 2 ? j > 0 ? j : 0 : 0;
+					},
+					"Старт"	: function(Man, cnv, ctx, data, troupe) {
+						var	dst = data.slice(1).join(" ");
+						if((data[0] == "в" || data[0] == "у" || data[0] == "до") && (dst in troupe) && ("position" in troupe[dst])) {
+							Man.position.x = troupe[dst].position.x;
+						} else
+						if((data[0] == "из" || data[0] == "от") && (dst in troupe) && ("position" in troupe[dst])) {
+							Man.position.x = troupe[dst].position.x;
+						}
+					},
+					"Вдаль"		: function(Man, cnv, ctx, data, troupe) {
+						if(Man.position.z < 10)
+							Man.position.z += 1 / 4;
+					},
+					"Вблизь"	: function(Man, cnv, ctx, data, troupe) {
+						if(Man.position.z > 1)
+							Man.position.z -= 1 / 4;
+					},
+				},
+				".Речь"		: [],
+				Clear: function() {
+					this.role.shift();
+				},
+				Next: function(This) {
+					This.role.shift();
+					This.acts.length = 0;
+				},
+				Render:	function(cnv, ctx) {
+					var x, y = cnv.height / 2, z;
+					var text_y = cnv.height / 3;
+					var tmp;
+					for(var Nick in this.troupe) {
+						if(Nick.charAt(0) == Nick.charAt(0).toUpperCase()) {
+							var Man = this.troupe[Nick];
+							if(!("phase" in Man)) {
+								Man.phase = 0;
+								Man.hands = 0;
+								Man.age = 16;
+								Man.fat = 1;
+								Man.step = 0;
+								Man.position = {x: Math.random() * cnv.width * 2 - cnv.width, y: 0, z: 5, j: 0};
+								Man.members = {lhx:0, lhy:0, rhx:0, rhy:0, lh: 0, rh: 0, ll: 0, rl: 0};
+							}
+							Man.step = 0;
+							this.troupe["запад"] = { position: {x: Man.position.x - 10, y: cnv.height / 2} };
+							this.troupe["запада"] = { position: {x: Man.position.x - 10, y: cnv.height / 2} };
+							this.troupe["западу"] = { position: {x: Man.position.x - 10, y: cnv.height / 2} };
+							this.troupe["западный"] = { position: {x: Man.position.x - 10, y: cnv.height / 2} };
+							this.troupe["восток"] = { position: {x: Man.position.x + 10, y: cnv.height / 2} };
+							this.troupe["востока"] = { position: {x: Man.position.x + 10, y: cnv.height / 2} };
+							this.troupe["востоку"] = { position: {x: Man.position.x + 10, y: cnv.height / 2} };
+							this.troupe["восточный"] = { position: {x: Man.position.x + 10, y: cnv.height / 2} };
+							this.troupe["центр"] = { position: {x: cnv.width / 2*0, y: cnv.height / 2} };
+							this.troupe["центра"] = { position: {x: cnv.width / 2*0, y: cnv.height / 2} };
+							this.troupe["центре"] = { position: {x: cnv.width / 2*0, y: cnv.height / 2} };
+							this.troupe["центру"] = { position: {x: cnv.width / 2*0, y: cnv.height / 2} };
+							this.troupe["начала"] = { position: {x: -cnv.width / 2, y: cnv.height / 2} };
+							this.troupe["начале"] = { position: {x: -cnv.width / 2, y: cnv.height / 2} };
+							this.troupe["начало"] = { position: {x: -cnv.width / 2, y: cnv.height / 2} };
+							this.troupe["началу"] = { position: {x: -cnv.width / 2, y: cnv.height / 2} };
+							this.troupe["конец"] = { position: {x: cnv.width / 2 * 2, y: cnv.height / 2} };
+							this.troupe["конца"] = { position: {x: cnv.width / 2 * 2, y: cnv.height / 2} };
+							this.troupe["конце"] = { position: {x: cnv.width / 2 * 2, y: cnv.height / 2} };
+							this.troupe["концу"] = { position: {x: cnv.width / 2 * 2, y: cnv.height / 2} };
+							Acting(this, Man);
+							if(Man.position.z < 0)
+								Man.position.z = 0;
+							z = 1 + Math.log(Man.position.z + 1);
+							var acts = Man.acts;
+							var s176 = cnv.height / 2.7273;
+							var s160 = cnv.height / 3;
+							var s144 = cnv.height / 3.3333;
+							var s72 = cnv.height / 6.6667;
+							var s48 = cnv.height / 10;
+							var s32 = cnv.height / 15;
+							var s16 = cnv.height / 30;
+							x = cnv.width / 2 + Man.position.x / z, y = (cnv.height - z) - (Man.position.y + Man.position.j) / z - cnv.height / 2;
+							x = cnv.width / 2 + Man.position.x / z, y = (cnv.height - z) - (Man.position.y + Man.position.j * s48) / z;
+							var	ty = y - s176 / z - s16 / z - cnv.height / 3, prefix = Nick + ": ";
+							var	text = ["«" + Nick + "»"], emoji = "";
+							for(var id in acts) {
+								var	data = acts[id][1].split(/\s+/);
+								if(acts[id][0] == ".Речь") {
+									ctx.fillStyle = "black";
+									ctx.strokeStyle = "black";
+									ctx.font = "" + Math.floor(s16) + "px Courier";
+									if(parse_emotion(acts[id][1], 0))
+										emoji = acts[id][1];
+									else
+										text.push(acts[id][1]);
+									/*ctx.beginPath();
+									var	txt = prefix + "«" + acts[id][1] + "»"
+									//ctx.fillText(txt, x - ctx.measureText(txt).width / 2, ty + text_y);
+									prefix = "";
+									//ctx.moveTo(x - ctx.measureText(txt).width / 2, ty + text_y); ctx.lineTo(x, y - 176 / z - 16 / z);
+									text_y += 16
+									ctx.closePath();
+									ctx.stroke();*/
+								} else
+								if((acts[id][0] in this) && (data[0] in this[acts[id][0]])) {
+									this[acts[id][0]][data[0]](Man, cnv, ctx, data.slice(1), this.troupe);
+								}
+							}
+//							if(text.length > 1)
+//								text_y += actor_cloud(cnv, ctx, [], 0,0,0, text, x, y - s176 / z - s16 / z, text_y);
+							if(Man.position.j > 0)
+								Man.position.j = Man.position.j >= 1 ? Man.position.j / 3 : 0;
+							ctx.lineWidth = 5 / z;
+							ctx.strokeStyle = "black";
+							tmp = actor_man(cnv, ctx, Man, emoji);
+							if(text.length > 1)
+								text_y += actor_cloud(cnv, ctx, [], 0,0,0, text, tmp.x, tmp.y, text_y);
+
+						}
+					}
+				},
+				Casted:	function(tmp) {
+					if(tmp) {
+						clearTimeout(this.timer);
+						this.job = true;
+						this.role = [];
+					}
+					if(this.job)
+						this.timer = setTimeout(this.Casted.bind(this), 1000 / this.velocity);
+					var man, uses = [];
+					while(this.role.length > 0 && this.role[0][0].charAt(0) == "!") {
+						tmp = this.role.shift();
+						if(tmp[0].substr(1) in this.troupe) {
+							tmp[0] = tmp[0].substr(1);
+							man = this.troupe[tmp[0]];
+							if(!(tmp[0] in uses))
+								uses[tmp[0]] = true,
+								this.troupe[tmp[0]] = {};
+							if(!(tmp[1] in this.troupe[tmp[0]]))
+								this.troupe[tmp[0]][tmp[1]] = [];
+							this.troupe[tmp[0]][tmp[1]].push(tmp[2]);
+						}
+					}
+					Automatic(this);
+					for(var id in this) {
+						if(id.charAt(0) == '.')
+							this[id][0] = Variation(this[id]);
+					}
+				}
+			}
+		},
+		Casting	:[],
+		leds			:[0,0,0,0,0,0,0,0,0,0],
+		story			:[],
+		movie			:[],
+		order			:0,
+		speed			:100,
+		iDelay			:100,
+		iKeyboard		:0,
+		tmp	: {
+			iNumerator	:0,
+			iDenominator	:0,
+			pReps		:[],	// Pointers of Repeats(...)
+			nReps		:[],	// Numerators of Repeats(...)
+			dReps		:[],	// Donominators of Repeats(...)
+			pRems		:[],	// Pointers for Remarks
+			pDots		:[],	// Pointers for Dots
+			pRem		:"",	// Current Remark
+			pDot		:""	// Current Dots
+			},
+		Scenario		:"",
+		Sections		:[],
+		Measures		:[],
+		iMeasure		:-1,
+		ptr			:0,
+		iRow			:0,
+		log	: {
+			text		:"",
+			Measures	:[]
+		}
+	};
+var	url;
+var	hTimer, hEraser;
+var	hTabs		= [];
+var	iTabs		= 0;
+var	iEstimated	= 1,
+	iDuration	= 1;
+////////////////////////////////
+var
+	VK = {
+		BACK_SPACE	:0x08,
+		TAB		:0x09,
+		RETURN		:0x0D,
+		BREAK		:0x13,
+		CAPITAL		:0x14,
+		ESC		:0x1B,
+		PREV		:0x21,
+		NEXT		:0x22,
+		END		:0x23,
+		HOME		:0x24,
+		LEFT		:0x25,
+		UP		:0x26,
+		RIGHT		:0x27,
+		DOWN		:0X28,
+		PRINT		:0x2C,
+		INSERT		:0x2D,
+		DELETE		:0x2E,
+		CONTEXT		:0x5D,
+		NUMPAD0		:0x60,
+		NUMPAD1		:0x61,
+		NUMPAD2		:0x62,
+		NUMPAD3		:0x63,
+		NUMPAD4		:0x64,
+		NUMPAD5		:0x65,
+		NUMPAD6		:0x66,
+		NUMPAD7		:0x67,
+		NUMPAD8		:0x68,
+		NUMPAD9		:0x69,
+		F1		:0x70,
+		F2		:0x71,
+		F3		:0x72,
+		F4		:0x73,
+		F5		:0x74,
+		F6		:0x75,
+		F7		:0x76,	// Assembly
+		F8		:0x77,
+		F9		:0x78,	// Break point on/off
+		F10		:0x79,
+		F11		:0x7A,
+		F12		:0x7B,
+		BROWSE_BACK	:0xA6,
+		BROWSE_FORWARD	:0xA7,
+		BROWSE_REFRESH	:0xA8,
+		BROWSE_STOP	:0xA9,
+		BROWSE_SEARCH	:0xAA,
+		BROWSE_HOME	:0xAC,
+		PLAYER_FORWARD	:0xB0,	// Emulation IP ++
+		PLAYER_REWIND	:0xB1,	// Emulation IP --
+		PLAYER_STOP	:0xB2,	// Emulation stop/step
+		PLAYER_PLAY	:0xB3,	// Emulation stop/start
+		BROWSE_MAIL	:0xB4
+	};
+////////////////////////////////
+///////	Glazeurs Using Ignores
+var	GUI_TABULATION	=0x0009;	// [->]	Tabulation key
+var	GUI_TABULATIONS	=0x2409;	// [HT]	Tabulation signature
+var	GUI_TABULATIONG	=0x21E5;	// ->|	Tabulation glyph
+////////////////////////////////
+///////	Glazeur Usings Indexators
+var	GUI_SUPER_ZERO	=0x2070;	// ^0^	Superscript index 0
+var	GUI_SUPER_ONE	=0x00B9;	// ^1^	Superscript index 1
+var	GUI_SUPER_TWO	=0x00B2;	// ^2^	Superscript index 2
+var	GUI_SUPER_THREE	=0x00B3;	// ^3^	Superscript index 3
+var	GUI_SUPER_FOUR	=0x2074;	// ^4^	Superscript index 4
+var	GUI_SUPER_NINE	=0x2079;	// ^9^	Superscript index 9
+var	GUI_LOWER_ZERO	=0x2080;	// _0_	Subscript index 0
+var	GUI_LOWER_NINE	=0x2089;	// _9_	Subscript index 9
+var	GUI_DOTTED_TAG	=0x2488;	//  1.	Dotted number 1.
+var	GUI_DOTTED_TOP	=0x249B;	//	20.	Dotted number 20.
+var	GUI_CIRCLE_TAG	=0x2460;	// (1)	Circled number 1
+var	GUI_CIRCLE_TOP	=0x2473;	// (20)	Circled number 20
+var	GUI_CIRCLE_KEY	=0x24B6;	// (A)	Circled key A
+var	GUI_CIRCLE_ZED	=0x24CF;	// (Z)	Circled key Z
+var	GUI_DOT_PATTERN	=0x2800;	// :::	Braille pattern
+////////////////////////////////
+///////	Glazeur Execution Markup
+var	GEM_SECTION	=0x00A7;	//	В§	Section
+var	GEM_MEASURE_SET	=0x20E3;	// [ ]	Set measure
+var	GEM_FADE_IN	=0x21E1;	// /|\	Fade in effect
+var	GEM_FADE_OUT	=0x21E3;	// \|/	Fade out effect
+var	GEM_FADE_AND	=0x2227;	// /\	Fade AND effect
+var	GEM_FADE_OR	=0x2228;	// \/	Fade OR effect
+var	GEM_FADE_XOR	=0x2295;	// (+)	Fade XOR effect
+var	GEM_FADE_LO	=0x270E;	// ^\	Lower bright  - 10%
+var	GEM_FADE_MID	=0x270F;	// --	Middle bright - 50%
+var	GEM_FADE_HI	=0x2710;	// _/	High bright   - 90%
+var	GEM_DEVICE_SET	=0x2328;	// [:]	Keyboard select
+var	GEM_STATE_LOAD	=0x2397;	// [[]	Load state
+var	GEM_STATE_SAVE	=0x2398;	// []]	Save state
+var	GEM_STATE_NULL	=0x239A;	// [/]	Clear state
+var	GEM_SHOW_DELAY	=0x23F1;	// (^)	Show delay pause
+var	GEM_SHOW_SPEED	=0x23F2;	// (-)	Show speed
+var	GEM_LOOP_TIMES	=0x267B;	// /_\	Looping for n-times
+var	GEM_SHOW_ALERT	=0x26A0;	// /!\	Alert
+var	GEM_STATE_STOP	=0x26D4;	// (=)	Stop/Halt
+var	GEM_SECTION_UP	=0x2934;	// /\	Measure prev. line
+var	GEM_SECTION_DWN	=0x2935;	// \/	Measure next line
+var	GEM_SECTION_RUN	=0x27B0;	// _o_	Measure line run
+////////
+var	GEM_RUN_UP	=0x25B2;	// [^]	Run LEDs to up
+var	GEM_RUN_RIGHT	=0x25B6;	// [>]	Run LEDs to right
+var	GEM_RUN_DOWN	=0x25BC;	// [v]	Run LEDs to down
+var	GEM_RUN_LEFT	=0x25C0;	// [<]	Run LEDs to left
+////////
+var	GEM_STATE_PRINT	=0x2399;	// [~]	Print the status
+var	GEM_SETUP_HZ	=0x3390;	// Hz	Refreshing frequency for LEDs
+var	GEM_SETUP_MS	=0x33B3;	// ms	Animation delay
+////////////////////////////////
+///////	Glazeur Enhanced Token
+function GET_KEY(wc)	{return (GUI_CIRCLE_TAG <= (wc) && (wc) <= GUI_CIRCLE_TOP ? (wc) - GUI_CIRCLE_TAG + 1 : GUI_CIRCLE_KEY <= (wc) && (wc) <= GUI_CIRCLE_ZED ? (wc) - GUI_CIRCLE_KEY + 21 : -1)}
+function GET_TAB(wc)	{return (GUI_TABULATION == (wc) || GUI_TABULATIONG == (wc) || GUI_TABULATIONS == (wc))}
+function GET_TAG(wc)	{return (GUI_DOTTED_TAG <= (wc) && (wc) <= GUI_DOTTED_TOP ? (wc) - GUI_DOTTED_TAG + 1 : -1)}
+function GET_LED(wc)	{return (GUI_DOT_PATTERN == ((wc) & ~255))}
+function GET_SUB(wc)	{return (GUI_LOWER_ZERO <= (wc) && (wc) <= GUI_LOWER_NINE ? (wc) - GUI_LOWER_ZERO : -1)}
+function GET_PWR(wc)	{return ((GUI_SUPER_FOUR <= (wc) && (wc) <= GUI_SUPER_NINE) || (wc) == GUI_SUPER_ZERO ? (wc) - GUI_SUPER_ZERO : GUI_SUPER_ONE == (wc) ? 1 : GUI_SUPER_TWO == (wc) ? 2 : GUI_SUPER_THREE == (wc) ? 3 : -1)}
+////////////////////////////////
+
+function	ShowLevel(bits) {
+	var	level = 0;
+	for(bits &= 001111111111; bits > 0; bits >>= 3)
+		level += bits & 1;
+	return 0x191919*0+0x061903 * level;
+}
+///////////////////////////////
+
+function	ShowLEDs(p, q) {
+	var	html = "", i, ds;
+	if(!q)
+		q = {
+			measure: {index: -1, row: -1},
+			row: -1,
+			leds: p.leds,
+			text: ""
+		};
+	for(i = 0; i < 27; ++ i) {
+		html += "<span style=color:#" + ("00000" + Number(ShowLevel(q.leds[i % 9 + 1] >> (i / 9 & 3))).toString(16)).substr(-6) + ">&#x25CF;&nbsp;</span>";
+		switch(i) {
+		case 8:
+			ds = (Math.floor(iDuration / 3600000) % 24) + ":" + ("0" + (Math.floor(iDuration / 60000) % 60)).substr(-2) + ":" + ("0" + (Math.floor(iDuration / 1000) % 60)).substr(-2) + "." + ("00" + (iDuration % 1000)).substr(-3);
+			html += "<span style=color:yellow>[" + ds + "]</span><br />";
+			break;
+		case 17:
+			if(p.Scenario.jSection < 0)
+				html += "<span style=color:yellow>Scenario-row#" + p.Scenario.iRow + " " + Math.floor(p.Scenario.iLoop * 100 / p.Scenario.iLoops) + "x" + p.Scenario.iLoop + "</span><br />";
+			else
+				html += "<span style=color:yellow>Scenario-row#" + p.Scenario.iRow + " " + Math.floor(p.Scenario.iLoop * 100 / p.Scenario.iLoops) + "x" + p.Scenario.iLoop + " "
+					+ p.Sections[p.Scenario.jSection].iRow + "$" + p.Scenario.jSection + " " + Math.floor(p.Sections[p.Scenario.jSection].iLoop * 100 / p.Sections[p.Scenario.jSection].iLoops) + "x" + p.Sections[p.Scenario.jSection].iLoop + "</span><br />";
+				//html += "<span style=color:yellow>Scenario" + (q.row >= 0 ? "-row#" + q.row + (q.measure.index >= 0 ? " " + q.measure.row + "&#167;" + q.measure.index + "(...)" : "") : " halted...") + "</span><br />";
+			break;
+		case 26:
+			html += "<span style=color:yellow>Logging:" + q.text + "</span>";
+			break;
+		}
+	}
+	document.getElementById("leds").innerHTML = html;
+}
+function peek(text) {
+	document.getElementById("debugger").innerHTML += text + "<br />";
+}
+function parse_fraction(pks, pwc) {
+	var	iFractions = [
+		0x2152010A,	//	1/10 .1
+		0x21510109,	//	1/9	0.111
+		0x215B0108,	//	1/8	0.125
+		0x21500107,	//	1/7	0.143
+		0x21590106,	//	1/6	0.167
+		0x21550105,	//	1/5	0.2
+		0x00BC0104,	//	1/4	0.25
+		0x21530103,	//	1/3	0.333
+		0x215C0308,	//	3/8	0.375
+		0x21560205,	//	2/5	0.4
+		0x00BD0102,	//	1/2	0.5
+		0x21570305,	//	3/5	0.6
+		0x215D0508,	//	5/8	0.625
+		0x21540203,	//	2/3	0.667
+		0x00BE0304,	//	3/4	0.75
+		0x21580405,	//	4/5	0.8
+		0x215A0506,	//	5/6	0.833
+		0x215E0708,	//	7/8	0.875
+		0x21890003,	//	0/3
+	],	i, wcode;
+	pks.iNumerating = -1,
+	pks.iDenominating = -1;
+	pks.iDenominator = -1;
+	do {
+		pks.iNumerator = -1;
+		if(pwc.c_ptr >= '0' && pwc.c_ptr <= '9') {
+			do {
+				while(pwc.c_ptr >= '0' && pwc.c_ptr <= '9')
+					pks.iNumerator = Math.max(pks.iNumerator, 0) * 10 + +pwc.c_ptr_pp;
+				if(pks.iDenominator == 60 || pks.iDenominator == 3600)
+					pks.iNumerator = pks.iNumerator % 100 + Math.floor(pks.iNumerator / 100) * 60;
+				if(pwc.c_ptr == ':' && pwc.str.charAt(1) >= '0' && pwc.str.charAt(1) <= '9') {
+					if(pks.iDenominator < 0)
+						pks.iDenominator = 60;
+					else
+						pks.iDenominator = 3600;
+					pwc.ptr ++;
+				} else
+				if(pks.iDenominator == 60 || pks.iDenominator == 3600) {
+					if(pks.iDenominator == 60)
+						pks.iDenominator *= 60;
+					if(pks.iNumerating >= 0) {
+						//peek("[" + pks.iNumerating + ".." + pks.iNumerator + "]");
+						return pks;
+					}
+					if(pwc.c_ptr != '-' || pwc.str.charAt(1) < '0' || pwc.str.charAt(1) > '9') {
+						//peek("[" + pks.iNumerating + ".." + pks.iNumerator + "]");
+						return pks;
+					}
+					pks.iNumerating = pks.iNumerator,
+					pks.iDenominating = pks.iDenominator;
+					pks.iNumerator = -1,
+					pks.iDenominator = -1;
+					pwc.ptr ++;
+				} else
+					break
+			} while(true);
+		} else
+		if(pwc.c_ptr == '0') {
+			pks.iNumerator = 0;
+			while(pwc.c_ptr >= '0' && pwc.c_ptr <= '7')
+				pks.iNumerator = pks.iNumerator * 8 + +pwc.c_ptr_pp;
+		} else
+			pks.iNumerator = -1;
+		wcode = pwc.a_ptr;
+		i = 10000;
+		if(pks.iNumerator > 0)
+			switch(wcode) {
+			case 0x25:	i /= 10;		// %
+			case 0x2030:	i /= 10;		// ‰
+			case 0x2031:	pks.iDenominator = i;
+					if(pks.iNumerating >= 0)
+						pks.iDenominating = i;
+					pwc.ptr ++;
+					return pks;
+			}
+		do {
+			i = iFractions.length;
+			while(i --) {
+				n = iFractions[i];
+				if(n >> 16 == wcode) {
+					if(pks.iNumerator < 1)
+						pks.iNumerator = (n >> 8) & 255;
+					else
+					if(pks.iDenominator < 1)
+						pks.iNumerator = pks.iNumerator * (n & 255) + ((n >> 8) & 255);
+					else
+						pks.iNumerator *= (n >> 8) & 255;
+					if(pks.iDenominator < 1)
+						pks.iDenominator = n & 255;
+					else
+						pks.iDenominator *= n & 255;
+					for(i = 2; pks.iNumerator / i >= 1 && pks.iDenominator / i >= 1; ++ i) {
+						if(pks.iNumerator == Math.floor(pks.iNumerator / i) * i && pks.iDenominator == Math.floor(pks.iDenominator / i) * i)
+							pks.iNumerator /= i,
+							pks.iDenominator /= i,
+							i = 1;
+					}
+					wcode = pwc.a_pp_ptr;
+					break;
+				}
+			}
+		} while(i >= 0);	//console.log("(" + p.tmp.iNumerator + "/" + p.tmp.iDenominator + ") == " + Math.floor(p.tmp.iNumerator / p.tmp.iDenominator) + "(" + (p.tmp.iNumerator % p.tmp.iDenominator) + "/" + p.tmp.iDenominator + ")");
+		if(pwc.c_ptr == '-') {
+			if(pks.iNumerating < 1)
+				pks.iNumerating = pks.iNumerator,
+				pks.iDenominating = pks.iDenominator;
+			pks.iDenominator = -1,
+			pwc.ptr ++;
+		} else
+			break;
+	} while(true);
+	return pks;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+function play_effect(p, pks, pwc) {
+	var	mode = 0,
+		code,
+		dots = -1,
+		index;
+	var	lo, hi, base = 001111111111;;
+	//
+	switch(pwc.a_ptr) {
+	case GEM_FADE_IN:
+	case GEM_FADE_OUT:
+	case GEM_FADE_AND:
+	case GEM_FADE_OR:
+	case GEM_FADE_XOR:
+		mode = pwc.a_ptr_pp;
+	}
+	switch(pwc.a_ptr) {
+	case GEM_FADE_LO:
+		base >>= 3 * 4;
+	case GEM_FADE_MID:
+		base >>= 3 * 4;
+	case GEM_FADE_HI:
+		base >>= 3 * 1;
+		++ pwc;
+	}
+	code = pwc.a_ptr;
+	if(code >= 0x2800 && code <= 0x28FF) {
+		index = pks.iKeyboard;
+		dots = pks.iNumerator;
+		while(code >= 0x2800 && code <= 0x28FF) {
+			if(code == 0x28C0) {
+				if(dots >= 1 && dots <= pks.pDots.length)
+					pks.pDots[0] = pks.pDots[dots - 1],
+					dots = -1;
+				code = pks.pDots[0].charCodeAt(0);
+				pks.pDots[0] = pks.pDots[0].substr(1);
+			}
+			code &= 255;
+			switch(mode) {
+			case GEM_FADE_IN:
+				lo = base * (code & 7),
+				hi = base * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] = (p.leds[index] & ~lo) | ((p.leds[index] << 3) & lo) | (p.leds[index] & lo);
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] = (p.leds[index] & ~hi) | ((p.leds[index] << 3) & hi) | (p.leds[index] & hi);
+				index = index % 9 + 1;
+				break;
+			case GEM_FADE_OUT:
+				lo = (base & ~7) * (code & 7),
+				hi = (base & ~7) * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] = (p.leds[index] & ~lo) | ((p.leds[index] & lo) >> 3);
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] = (p.leds[index] & ~hi) | ((p.leds[index] & hi) >> 3);
+				index = index % 9 + 1;
+				break;
+			case GEM_FADE_AND:
+				lo = base * (code & 7),
+				hi = base * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] &= (p.leds[index] & 030000000000) | lo;
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] &= (p.leds[index] & 030000000000) | hi;
+				index = index % 9 + 1;
+				continue;
+			case GEM_FADE_OR:
+				lo = base * (code & 7),
+				hi = base * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] = (p.leds[index] & 037777777777) | lo;
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] = (p.leds[index] & 037777777777) | hi;
+				index = index % 9 + 1;
+				continue;
+			case GEM_FADE_XOR:
+				lo = base * (code & 7),
+				hi = base * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] = (p.leds[index] & 037777777777) ^ lo;
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] = (p.leds[index] & 037777777777) ^ hi;
+				index = index % 9 + 1;
+				continue;
+			default:
+				lo = base * (code & 7),
+				hi = base * ((code >> 3) & 7);
+				if((code & 0100) == 0)
+					p.leds[index] = (p.leds[index] & 030000000000) | lo;
+				index = index % 9 + 1;
+				if((code & 0200) == 0)
+					p.leds[index] = (p.leds[index] & 030000000000) | hi;
+				index = index % 9 + 1;
+				break;
+			}
+			code = pwc.a_pp_ptr;
+		}
+		return true;
+	}
+	if(GEM_DEVICE_SET == code && pks.iDenominator < 0) {
+		if(pks.iNumerator >= 1 && pks.iNumerator <= 9)
+			pks.iKeyboard = pks.iNumerator;
+		else
+		if(pks.iNumerator >= 1 && pks.iNumerator >= 11)
+			p.order = pks.iNumerator;
+		else
+		if(pks.iNumerator < 0 && mode == GEM_FADE_IN)
+			p.iKeyboard = p.iKeyboard % 9 + 1;
+		else
+		if(pks.iNumerator < 0 && mode == GEM_FADE_OUT)
+			pks.iKeyboard = (pks.iKeyboard + 7) % 9 + 1;
+		pwc.ptr ++;
+		return true;
+	}
+	if(GEM_RUN_UP == code && pks.iNumerator < 0) {
+		pwc.ptr ++;
+		for(index = 1; index <= 9; ++ index) {
+			code = p.leds[index];
+			p.leds[index] = (code & 030000000000) | ((code & 006666666666) >> 1) | ((code & 001111111111) << 2);
+		}
+		return true;
+	}
+	if(GEM_RUN_RIGHT == code && pks.iNumerator < 0) {
+		pwc.ptr ++;
+		index = 9;
+		code = p.leds[index];
+		while(index > 1)
+			p.leds[index] = p.leds[index - 1],
+			index --;
+		p.leds[index] = code;
+		return true;
+	}
+	if(GEM_RUN_DOWN == code && pks.iNumerator < 0) {
+		pwc.ptr ++;
+		for(index = 1; index <= 9; ++ index) {
+			code = p.leds[index];
+			p.leds[index] = (code & 030000000000) | ((code & 004444444444) >> 2) | ((code & 003333333333) << 1);
+		}
+		return true;
+	}
+	if(GEM_RUN_LEFT == code && pks.iNumerator < 0) {
+		pwc.ptr ++;
+		index = 1;
+		code = p.leds[index];
+		while(index < 9)
+			p.leds[index] = p.leds[index + 1],
+			index ++;
+		p.leds[index] = code;
+		return true;
+	}
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//	FUNCTION:	Get measure row
+//	PURPOSE:	Find the target row
+//	Example:
+//	|This is measure's commentary
+//	|	[1]		This is row #1
+//	|This is measure's commentary #2	
+//	|	[2]		This is row #2
+//	|This is measure's finish
+//	|
+////////////////////////////////////////////////////////////////////////////////
+function parse_section_rows(pks, pwc, iRow) {
+	var	rows	= 0;
+	var	tabs	= 0;
+	var	index;
+	//
+	do {
+		if(pwc.a_ptr < ' ' && !GET_TAB(pwc.a_ptr))
+			return -1;
+		if(GET_KEY(pwc.a_ptr) > 0)
+			++ pwc.ptr;
+		index = GET_TAG(pwc.a_ptr);
+		if(index > 0)
+			++ pwc.ptr;
+		else
+			index = 0;
+		if(GET_LED(pwc.a_ptr)) {
+			if(0x28C0 == pwc.a_ptr)
+				++ pwc.ptr;
+			pks.pDots[index] = pwc.str,
+			pks.pDots[0] = pwc.str;
+		} else
+		if(GET_TAB(pwc.a_ptr))
+			pks.iTags[index] = rows,
+			pks.iTags[0] = rows,
+			++ rows,
+			-- iRow;
+		else
+			pks.pRems[index] = pwc.str,
+			pks.pRems[0] = pwc.str;
+		if(iRow < 0)
+			break;
+		while(0x000D != pwc.a_ptr && pwc.a_ptr != 0x000A) {
+			if(!pwc.a_ptr_pp)
+				return -1;
+		}
+		if((0x000D == pwc.arr_ptr[0] && pwc.arr_ptr[1] == 0x000A)
+		|| (0x000A == pwc.arr_ptr[0] && pwc.arr_ptr[1] == 0x000D))
+			pwc.ptr += 2;
+		else
+			pwc.ptr ++;
+	} while(iRow >= 0);
+	return rows;
+}
+function Sleep(pk, pks, iSection, iRow, interval) {
+	pk.movie.push({
+		measure	:{index: iSection, row: iRow},
+		delay	:interval,
+		leds	:[].concat(pk.leds),
+		row	:iRow,
+		text	:pk.log.text
+	});
+}
+function Storing(pk, pks, text) {
+	if(pk.story.length < 1)
+		pk.story.push([]);
+	pk.story[pk.story.length - 1].push(text);
+	document.getElementById("debugger").innerHTML += text + "<br />";
+}
+function parse_section(pk, iSection, ppwc) {
+	var	pks = iSection < 0 ? pk.Scenario : pk.Sections[iSection];
+	if(!pks.pSection)
+		return;
+	var	pwc = new WCHAR(pks.pSection.str);
+	var	prem = "", plog = "";
+	var	jSection;		//	Job-Section index
+	var	kSection;		//	Key-Section index
+	var	iRow, i, tmp;
+	var	iRowIndex, iRowLoops;
+	var	index;
+	var	nTabs	= 0;
+	//
+	var	iDelay		= 0;
+	//
+	if(ppwc)
+		++ ppwc.ptr,
+		pwc = ppwc;
+	else {
+		iRow = parse_section_rows(pks, pwc, pks.iRow);
+		if(iRow < 0)
+			return false;
+		while(GET_TAB(pwc.a_ptr)) {
+			if(pwc.a_ptr == GUI_TABULATION)
+				++ nTabs;
+			++ pwc.ptr;
+		}
+	}
+	iRowIndex = pks.iRow ++;
+	iRowLoops = pks.iLoop;
+	pks.iLoop = 0;
+	pks.iLoops = pks.iLoops > 0 ? pks.iLoops : 1;
+	pks.iReps = -1;
+	pks.nReps = [];
+	pks.dReps = [];
+	pks.pReps = [];
+	jSection = pks.jSection;
+	while(pwc.a_ptr >= 0x20 && !GET_TAB(pwc.a_ptr)) {
+		while(pwc.c_ptr == ' ')
+			++ pwc.ptr;
+		i = GET_TAG(pwc.a_ptr);
+		if(i > 0) {
+			if(pks.iTags[i] > 0)
+				pks.iRow = pks.iTags[i];
+			++ pwc.ptr;
+			continue;
+		}
+		i = GET_KEY(pwc.a_ptr);
+		if(i > 0) {
+			if(pks.iKeys[i] > 0)
+				pks.iRow = pks.iKeys[i];
+			++ pwc.ptr;
+			continue;
+		}
+		parse_fraction(pks, pwc);
+		if(GEM_SECTION == pwc.a_ptr && pks.iDenominator < 0) {
+			++ pwc.ptr;
+			if('0' <= pwc.c_ptr && pwc.c_ptr <= '9')
+				jSection = pwc.a_ptr_pp - 0x0030,
+				pks.jSection = jSection;
+			else
+			if('(' == pwc.c_ptr) {
+				parse_section(pk, jSection, pwc);
+				continue;
+			}
+			if(pks.iNumerator >= 0)
+				if(iSection < 0)
+					pk.Sections[jSection].iRow = pks.iNumerator;
+				else
+					pks.iRow = pks.iNumerator;
+			continue;
+		}
+		if(GEM_SECTION == pwc.a_ptr && pks.iNumerator >= 0 && pks.iDenominator < 0) {
+			if(iSection < 0 && jSection >= 0) {
+				pk.Sections[jSection].iRow = pks.iNumerator;
+			} else
+				pks.iRow = pks.iNumerator;
+			++ pwc.ptr;
+			continue;
+		}
+		if(GEM_SECTION_RUN == pwc.a_ptr && pks.iDenominator < 0 && jSection >= 0) {
+			pk.Sections[jSection].iKeyboard = pks.iKeyboard;
+			parse_section(pk, jSection, 0);
+			++ pwc.ptr;
+			continue;
+		}
+		if(GEM_SECTION_UP == pwc.a_ptr && pks.iDenominator < 0) {
+			if(pks.iNumerator > 0)
+				pks.iRow = pks.iRow > pks.iNumerator ? pks.iRow - pks.iNumerator : 1;
+			else
+			if(pks.iRow > 1)
+				-- pks.iRow;
+			++ pwc.ptr;
+			continue;
+		}
+		if(GEM_SECTION_DWN == pwc.a_ptr && pks.iDenominator < 0) {
+			if(pks.iNumerator > 0)
+				pks.iRow += pks.iNumerator;
+			else
+				++ pks.iRow;
+			++ pwc.ptr;
+			continue;
+		}
+		if(GEM_SHOW_DELAY == pwc.a_ptr) {
+			if(jSection < 0)
+				;//wprintf(L"Scenario-row#%-3d x%d", pk->Scenario.iRow, pk->Scenario.iLoop);
+			else
+				;//wprintf(L"Scenario-row#%-3d x%d %3d$%d x%d", pk->Scenario.iRow, pk->Scenario.iLoop, pk->Sections[jSection].iRow, jSection, iRowLoops);
+			if(pks.iNumerator < 0) {
+				if(pks.iDelayDivider > 0) {
+					pk.duration += pks.iDelayPeriod * pks.iDelayMultiplier / pks.iDelayDivider;
+					Sleep(pk, pks, iSection, iRow, pks.iDelayPeriod * pks.iDelayMultiplier / pks.iDelayDivider);
+				} else {
+					if(iSection < 0)
+						;//printf("\r\nERROR: Scenario Row %d --- Wrong Delay Interval", iRow);
+					else
+						;//printf("\r\nERROR: Paragraph #%d Row %d --- Wrong Delay Interval", iSection, iRow);
+					Sleep(1000);
+				}
+			} else
+			if(pks.iDenominator < 0)
+				pk.duration += pks.iDelayPeriod * pks.iDelayMultiplier * pks.iNumerator / pks.iDelayDivider,
+				Sleep(pk, pks, iSection, iRow, pks.iDelayPeriod * pks.iDelayMultiplier * pks.iNumerator / pks.iDelayDivider);
+			else
+				pk.duration += pks.iDelayPeriod * pks.iDelayMultiplier * pks.iNumerator / pks.iDelayDivider / pks.iDenominator,
+				Sleep(pk, pks, iSection, iRow, pks.iDelayPeriod * pks.iDelayMultiplier * pks.iNumerator / pks.iDelayDivider / pks.iDenominator);
+/*			if(pks->iNumerator < 0 && pks->iDenominator < 0) {
+				if(pks->iDelayDivider > 0)
+					Sleep(pks->iDelayPeriod * pks->iDelayMultiplier / pks->iDelayDivider);
+				else {
+					printf("\r\nERROR: Paragraph #%d Row %d", iSection, iRow);
+					Sleep(5000);
+				}
+			} else
+			if(pks->iNumerator == 0 && pks->iDenominator < 0)
+				pks->iDelayMultiplier = pk->Scenario.iDelayPeriod,
+				pks->iDelayDivider = 1;
+			else {
+				if(pks->iNumerator > 0)
+					pks->iDelayMultiplier = pks->iNumerator,
+					pks->iDelayDivider = 1;
+				if(pks->iDenominator > 0)
+					pks->iDelayDivider = pks->iDenominator;
+			}*/
+			//printf("[%d:%02d:%02d.%03d] - I/O-Errors:%d", pk->duration / 3600000 % 10, pk->duration / 60000 % 60, pk->duration / 1000 % 60, pk->duration % 1000, pk->errors);
+			++ pwc.ptr;
+			continue;
+		}
+		////////////////////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////////////////////
+		if(';' == pwc.c_ptr) {
+			++ pwc.ptr;
+			if(pks.iReps >= 0) {
+				i = pks.nReps[pks.iReps];
+				if(i > pks.dReps[pks.iReps])
+					continue;
+				-- pks.nReps[pks.iReps];
+				if(i > 1)
+					continue;
+				i = 0;
+				do {
+					++ pwc.ptr;
+					if('(' == pwc.c_ptr)
+						++ i;
+					if(')' == pwc.c_ptr)
+						-- i;
+				} while(pwc.a_ptr && i >= 0);
+			}
+		}
+		if(')' == pwc.c_ptr) {
+			if(!!ppwc)
+				return ppwc.ptr = ++ pwc.ptr;
+				//return !!*(*ppwc = ++ pwc);
+			if(pks.iReps >= 0) {
+				i = pks.dReps[pks.iReps];
+				if(i > 0) {
+					if((pks.nReps[pks.iReps] -= i) > 0) {
+						pwc = pks.pReps[pks.iReps];
+						continue;
+					}
+				} else
+				if(-- pks.nReps[pks.iReps] > 0) {
+					pwc = pks.pReps[pks.iReps];
+					continue;
+				}
+				-- pks.iReps;
+			}
+			++ pwc.ptr;
+			continue;
+		}
+		if('(' == pwc.c_ptr) {
+			++ pwc.ptr;
+			if(pks.iNumerator > 0) {
+				++ pks.iReps;
+				pks.pReps[pks.iReps] = pwc.ptr;
+				pks.nReps[pks.iReps] = pks.iNumerator;
+				pks.dReps[pks.iReps] = pks.iDenominator;
+				continue;
+			}
+			break;
+		}
+		if(play_effect(pk, pks, pwc))
+			continue;
+		if(GEM_STATE_PRINT == pwc.a_ptr) {
+			++ pwc.ptr;
+			if(pks.iNumerator >= 0 && pks.iNumerator <= 20)
+				index = pks.iNumerator;
+			else
+				index = 0;
+			prem = pks.pRems[index];
+			plog = pk.log;
+			i = 0;
+/*			while(*prem && *prem != 0x000D) {
+				index = GET_SUB(*prem);
+				kSection = -1;
+				if(index >= 0)
+					kSection = iSection;
+				else
+					index = GET_PWR(*prem);
+				if(index >= 0) {
+					if(index == 0)
+						index = pk->Sections[kSection].iRow;
+					else
+					if(index - 1 <= pk->Sections[kSection].iReps) {
+						tmp = pk->Sections[kSection].dReps[pk->Sections[kSection].iReps - index + 1];
+						index = pk->Sections[kSection].nReps[pk->Sections[kSection].iReps - index + 1];
+						if(tmp > 0)
+							index /= tmp;
+					} else
+						index = -1;
+					if(index >= 0)
+						index = swprintf(plog, L"%d", index);
+					else
+						index = swprintf(plog, L"?");
+					plog += index;
+					i += index;
+					++ prem;
+					continue;
+				}
+				if(GEM_SECTION == *prem)
+					*plog ++ = iSection + '0',
+					++ prem;
+				else
+					*plog ++ = *prem ++;
+				++ i;
+			}
+			WriteConsoleW(hStdOut, pk->log, i, NULL, NULL);*/
+			continue;
+		}
+		if(GEM_STATE_NULL == pwc.a_ptr) {
+			if(pks.iDenominator < 0 && pks.iNumerator < 0) {
+			} else
+			if(pks.iDenominator < 0) {
+				if(pks.iNumerator >= 1 && pks.iNumerator <= 20) {
+					if(pks.pDots[pks.iNumerator])
+						pks.pDots[0] = pks.pDots[pks.iNumerator];
+				}
+			}
+			++ pwc;
+			continue;
+		}
+		if(GEM_DEVICE_SET == pwc.a_ptr && pks.iDenominator < 0) {
+			if(pks.iNumerator >= 1 && pks.iNumerator <= 9)
+				pks.iKeyboard = pks.iNumerator;
+			else
+			if(pks.iNumerator >= 1 && pks.iNumerator >= 11) {
+				index = pks.iNumerator;
+				pk.order = 0;
+				do
+					pk.order = pk.order * 10 + index % 10;
+				while((index /= 10) >= 1);
+			}
+			pwc.ptr ++;
+			continue;
+		}
+		if(GEM_SHOW_SPEED == pwc.a_ptr) {
+			if(pks.iNumerator < 0)
+				pks.iDelayMultiplier = 1,
+				pks.iDelayDivider = 1;
+			else
+			if(pks.iDenominator < 0)
+				pks.iDelayMultiplier = 1,
+				pks.iDelayDivider = 1;
+			else
+				pks.iDelayMultiplier *= pks.iNumerator,
+				pks.iDelayDivider *= pks.iDenominator;
+			//parse_fraction(pks->iDelayMultiplier, pks->iDelayDivider);
+			if(pks.iNumerator < 0 && pks.iDenominator < 0) {
+				if(pks.iDelayDivider > 0)
+					Sleep(pk, pks, iSection, iRow, pks.iDelayPeriod * pks.iDelayMultiplier / pks.iDelayDivider);
+//				else {
+//					printf("\r\nERROR: Paragraph #%d Row %d", iSection, iRow);
+//					Sleep(5000);
+//				}
+			} else
+			if(pks.iNumerator == 0 && pks.iDenominator < 0)
+				pks.iDelayMultiplier = pks.Scenario.iDelayPeriod,
+				pks.iDelayDivider = 1;
+			else {
+				if(pks.iNumerator > 0)
+					pks.iDelayMultiplier = pks.iNumerator,
+					pks.iDelayDivider = 1;
+				if(pks.iDenominator > 0)
+					pks.iDelayDivider = pks.iDenominator;
+			}
+			++ pwc.ptr;
+			continue;
+		}
+		if(GEM_LOOP_TIMES == pwc.a_ptr) {
+			++ pwc.ptr;
+			if(pks.iNumerator > 0 && pks.iDenominator < 0) {
+				if(pks.iNumerator > iRowLoops)
+					pks.iRow = iRowIndex,
+					pks.iLoop = iRowLoops + 1,
+					pks.iLoops = pks.iNumerator;
+			}
+			continue;
+		}
+		if(GEM_SETUP_MS == pwc.a_ptr) {
+			++ pwc.ptr;
+			if(iSection < 0) {
+				if(pks.iNumerator > 0 && pks.iDenominator > 0)
+					pks.iDelayMultiplier = pks.iNumerator,
+					pks.iDelayDivider = pks.iDenominator;
+				else
+				if(pks.iNumerator > 0)
+					pks.iDelayPeriod = pks.iNumerator,
+					pks.iDelayMultiplier = 1,
+					pks.iDelayDivider = 1;
+				else
+					pks.iDelayMultiplier = 1,
+					pks.iDelayDivider = 1;
+				continue;
+			} else
+			if(pks.iNumerator > 0 && pks.iDenominator > 0)
+				pks.iDelayMultiplier = pks.iNumerator,
+				pks.iDelayDivider = pks.iDenominator;
+			else
+			if(pks.iNumerator > 0)
+				pks.iDelayPeriod = pks.iNumerator,
+				pks.iDelayMultiplier = 1,
+				pks.iDelayDivider = 1;
+			else
+				pks.iDelayPeriod = pk.Scenario.iDelayPeriod * pk.Scenario.iDelayMultiplier / pk.Scenario.iDelayDivider,
+				pks.iDelayMultiplier = 1,
+				pks.iDelayDivider = 1;
+			continue;
+		}
+		if(GEM_SETUP_HZ == pwc.a_ptr && pks.iNumerator >= 0 && pks.iDenominator < 0) {
+			pk.speed = pks.iNumerator;
+			++ pwc.ptr;
+			continue;
+		}
+		// Здесь разбираются специфические синтаксические ремарки
+		if(nTabs == 1) {	// Первый уровень табуляционной вложенности
+			for(var id in pk.Actors)	// Сканируем список "актёров"/"явлений"
+				if(id == pwc.str.substr(0, id.length)) {
+					console.log("Actor - " + id);
+					pks.Actor = id;
+					pks.Member = "";
+					if(!(id in pk.Casting)) {	// Вводим "актёра"/"явление" в список кастинга
+						pk.Actors[id].Casted(true);
+						pk.Casting.push(id);
+					}
+					if(id.substr(-1) == " ") {	// Если это "актёр", а не "явление"...
+						pks.Nick = pwc.str.substr(id.length).match(/[-A-Za-z_А-Яа-яЁё 0-9]+/)[0];
+						console.log("Nick - " + pks.Nick);
+						if(pks.Nick) {		// Присваиваем уникальный псевдоним
+							if(!(pks.Nick in pk.Actors[id].troupe))
+								pk.Actors[id].troupe[pks.Nick] = {
+									role	:[],
+									acts	:[]
+								};
+							id += pks.Nick;
+						} else
+							pks.Nick = "";
+					} else
+						pks.Nick = "";
+					Storing(pk, pks, id + "() // " + nTabs);
+					pwc.ptr += id.length - 1;
+					break;
+				} else
+					continue;
+		} else
+		if(nTabs == 2) {	// Второй уровень табуляционной вложенности
+			if(pks.iNumerator >= 0 && (pks.Actor in pk.Actors) && (pks.Member in pk.Actors[pks.Actor]) && (pks.iDenominator == 60 || pks.iDenominator == 3600))
+				pk.Actors[pks.Actor].role.push(["@", pks.iNumerating, pks.iNumerator]);
+			else
+				for(var id in pk.Actors[pks.Actor])	
+					if(id == "." + pwc.str.substr(0, id.length - 1)) {
+						if(pks.Nick == "") {
+							pks.Member = id;
+							Storing(pk, pks, pks.Actor + "." + pks.Member);
+							pwc.ptr += id.length - 1;
+							if('=' == pwc.c_ptr) {
+								++ nTabs;
+							}
+						} else {
+							pks.Member = id;
+						}
+						break;
+					} else
+						continue;
+		} else
+		if(nTabs == 3 && (pks.Actor in pk.Actors) && (pks.Member in pk.Actors[pks.Actor])) {
+			if(pks.iNumerator >= 0) {
+				if((pks.iDenominator == 60 || pks.iDenominator == 3600) && (pks.iDenominating == 60 || pks.iDenominating == 3600)) {
+					if(pks.Nick == "")
+						pk.Actors[pks.Actor].role.push(["@", pks.iNumerating, pks.iNumerator]);
+					else
+					if(pks.Nick in pk.Actors[pks.Actor].troupe)
+						pk.Actors[pks.Actor].troupe[pks.Nick].role.push(["@", pks.iNumerating, pks.iNumerator]);
+				} else {
+					pk.Actors[pks.Actor].role.push([pks.Member, pks.iNumerating, pks.iNumerator]);
+				}
+				continue;
+			}
+			tmp = pwc.str.match(/[^\t\u2409\u21E5\r\n]+/)[0];
+			if(tmp && pks.Nick != "" && (pks.Nick in pk.Actors[pks.Actor].troupe)) {
+				pk.Actors[pks.Actor].troupe[pks.Nick].role.push(["!" + pks.Nick, pks.Member, tmp]);
+				pwc.ptr += tmp.length - 1;
+			} else
+			if(tmp && (pks.Member in pk.Actors[pks.Actor])) {
+				if((tmp + " ") in pk.Actors)
+					tmp += " ";
+				if(tmp in pk.Actors)
+					pk.Actors[pks.Actor].troupe.push(tmp);
+				pwc.ptr += tmp.length - 1;
+			}
+		}
+		++ pwc.ptr;
+	};
+	if(pks.iNumerating >= 0 && pks.iDenominating == 3600 && pks.iNumerator >= pks.iNumerating && pks.iDenominating == 3600) {
+		Storing(pk, pks, "@" + (pks.iNumerating + Math.random() % (pks.iNumerator - pks.iNumerating + 1)));
+	}
+	return true;
+}
+
+function	animate() {
+	var	q = CINEMA.movie.shift(), hPrg = document.getElementById("Progress");
+	if(q) {
+		var	i, sPrg, iPrg;
+		ShowLEDs(CINEMA, q);
+		hTimer = setTimeout("animate()", q.delay);
+		iPrg = Math.floor(iDuration * 100 / iEstimated);
+		sPrg = "";
+		for(i = 0; i < iPrg; i += 2)
+			sPrg += "\u2593";
+		sPrg += i == iPrg ? "\u2593" : "\u2592";
+		while(i < 100)
+			sPrg += "\u2591",
+			i += 2;
+		hPrg.textContent = sPrg;
+		iDuration += q.delay;
+	} else
+	if(iEstimated > 1) {
+		hPrg.textContent = "Completed! Click for share this scenario.";
+		ShowLEDs(CINEMA);
+	}
+}
+
+function parse_scenario(pk, cmd) {
+	var	pwc = new WCHAR(cmd);
+	var	pks;
+	var	iSection;
+	var	index, iRow;
+	var	wide, size;
+	//
+	do {
+		iRow = 0;
+		wide = pwc.arr_ptr;
+		if(GEM_SECTION == wide[0] && 0x0030 <= wide[1] && wide[1] <= 0x0039)
+			iSection = pwc.a_pp_ptr - 0x0030,
+			++ pwc.ptr,
+			pks = pk.Sections[iSection];
+		else
+			iSection = -1,
+			pks = pk.Scenario;
+		pks.iRow = 0;
+		pks.pSection = new WCHAR(pwc.str);
+		pks.iLoops = 0;
+		for(index = 0; index <= 20; ++ index)
+			pks.pDots[index] = 0,
+			pks.pRems[index] = 0,
+			pks.iTags[index] = 0;
+		for(index = 0; index <= 46; ++ index)
+			pks.iKeys[index] = 0;
+		pks.iLoop = 0;
+		pks.jSection = -1;
+		do {
+			if(GEM_SECTION == pwc.a_ptr)
+				break;
+			size = 0;
+			index = GET_KEY(pwc.a_ptr);
+			if(index > 0)
+					console.log("Key[" + index + "] = iRow#" + iRow),
+				pks.iKeys[index] = iRow,
+				++ pwc.ptr,
+				++ size;
+			index = GET_TAG(pwc.a_ptr);
+			if(index < 1)
+				index = 0;
+			else
+				++ pwc.ptr,
+				++ size;
+			if(GET_LED(pwc.a_ptr))
+					console.log("Dot[" + index + "] = iRow#" + iRow),
+				pks.pDots[index] = pwc.str,
+				pks.pDots[0] = pwc.str;
+			else
+			if(GET_TAB(pwc.a_ptr))
+					console.log("Tag[" + index + "] = iRow#" + iRow),
+				pks.iTags[index] = iRow,
+				pks.iTags[0] = iRow,
+				iRow ++;
+			else
+				pks.pRems[index] = pwc.str,
+				pks.pRems[0] = pwc.str;
+			while(!!pwc.a_ptr && 0x000D != pwc.a_ptr && pwc.a_ptr != 0x000A)
+				++ pwc.ptr,
+				++ size;
+			wide = pwc.arr_ptr;
+			if((0x000D == wide[0] && wide[1] == 0x000A)
+			|| (0x000A == wide[0] && wide[1] == 0x000D)) {
+				if(size == 0)
+					pwc.ptr ++,
+					pwc.ptr ++;
+				else
+					pwc.ptr += 2;
+			} else
+			if(0x000D == wide[0] || wide[0] == 0x000A) {
+				if(size == 0)
+					pwc.ptr += 1;
+				else
+					++ pwc.ptr;
+			}
+		} while(size > 0);
+	} while(!!pwc.a_ptr && (iSection >= 0 || GEM_SECTION == pwc.a_ptr));
+}
+
+function	animate_section() {
+	var	q, i, n = 0, r = 0, log = [],
+		hPrg = document.getElementById("Progress"),
+		hMode = document.getElementById("Mode"),
+		hTable = document.getElementById("environment");
+	CINEMA.Casting.forEach(function(name) {
+		var actor = CINEMA.Actors[name];
+		r = 0;
+		if(hTable.rows.length <= r)
+			hTable.insertRow(r);
+		if(hTable.rows[r].cells.length <= n)
+			hTable.rows[r].appendChild(document.createElement('th'));
+		hTable.rows[r].cells[n].innerHTML = name + ":";
+		r ++;
+		for(var row in actor) {
+			if(row.charAt(0) == '.' || row.charAt(0) == ':') {
+				if(hTable.rows.length <= r)
+					hTable.insertRow(r);
+				while(hTable.rows[r].cells.length <= n)
+					hTable.rows[r].insertCell(hTable.rows[r].length);
+				if(row == "@")
+					hTable.rows[r].cells[n].innerText = row.substr(1) + ":" + actor[row].join(":");
+				else
+					hTable.rows[r].cells[n].innerText = row.substr(1) + "[" + String(actor[row][1]) + "-" + String(actor[row][2]) +"]:" + String(actor[row][0]).substr(0,3);
+				r ++;
+			}
+		}
+		n ++;
+		log.push("");
+	});
+	hTimer = setTimeout(animate_section, 500);
+}
+
+function	parse(p, cmd) {
+	var	wcode,
+		ascii,
+		tmp;
+	//////////////////////////////////////////
+	p.Casting.forEach(function(actor) {
+		p.Actors[actor].job = false;
+		if(p.Actors[actor].troupe)
+			p.Actors[actor].troupe = [];
+	});
+	p.Casting = [];
+	parse_scenario(p, cmd);
+	while(parse_section(p, -1, 0));
+	clearTimeout(hTimer);
+	animate_section();
+	return;
+}
+function	parser() {
+	document.getElementById("Progress").href=url+"?script="+escape(document.getElementById("Scenario").value.split(/\r?\n/).join("\r\n")).replace(/%u/g, "%25u");
+	parse(CINEMA, document.getElementById("Scenario").value);
+}
+
+function insertAtCursor(hText, szChar) {
+    //IE support
+	if(document.selection) {
+		hText.focus();
+		sel = document.selection.createRange();
+		sel.text = szChar;
+	} else
+	//MOZILLA and others
+	if(hText.selectionStart || hText.selectionStart == '0') {
+		var	startPos	= hText.selectionStart;
+		var	endPos		= hText.selectionEnd;
+		if(szChar == String.fromCharCode(0x21E5, 0x0009)) {
+			var	i	= startPos, n = 0;
+			while(i > 0 && !hText.value.charAt(i - 1).match(/\r|\n/))
+				-- i;
+			while(i < startPos) {
+				if(hText.value.charAt(i) == '\t')
+					n = (n | 7) + 1;
+				else
+					n ++;
+				++ i;
+			}
+			if((n & 7) < 7)
+				szChar = "\u21E5\t";
+			else
+				szChar = "\u21E5";
+		}
+		hText.value = hText.value.substring(0, startPos)
+			+ szChar
+			+ hText.value.substring(endPos, hText.value.length);
+		hText.selectionStart = startPos + szChar.length;
+		hText.selectionEnd = hText.selectionStart;
+	} else
+		hText.value += szChar;
+}
+function insertOperator(e) {
+	if(e.target && (e.target.nodeName == "TD" || e.target.nodeName == "SPAN")) {
+		insertAtCursor(document.getElementById("Scenario"), e.target.textContent.replace(/\u23CE\r/g, "\r\n"));
+		document.getElementById("Scenario").focus();
+	}
+}
+function hidingTable(e) {
+	hEraser = setTimeout(function() {
+		hTabs[iTabs].style.display = "none";
+		iTabs = 0;
+		hTabs[iTabs].style.display = "block";
+	}, 500);
+}
+function holdingTable(e) {
+	clearTimeout(hEraser);
+	hEraser = 0;
+}
+
+function main() {
+	var	layouts = [
+		[
+			"0x00002077:Iteration of basic cycle #7",
+			"0x00002078:Iteration of basic cycle #8",
+			"0x00002079:Iteration of basic cycle #9",
+			"0x00000037:Number @",
+			"0x00000038:Number @",
+			"0x00000039:Number @",
+			"0x00002087:Iteration of current cycle #7",
+			"0x00002088:Iteration of current cycle #8",
+			"0x00002089:Iteration of current cycle #9",
+			"0x00002074:Iteration of basic cycle #4",
+			"0x00002075:Iteration of basic cycle #5",
+			"0x00002076:Iteration of basic cycle #6",
+			"0x00000034:Number @",
+			"0x00000035:Number @",
+			"0x00000036:Number @",
+			"0x00002084:Iteration of current cycle #4",
+			"0x00002085:Iteration of current cycle #5",
+			"0x00002086:Iteration of current cycle #6",
+			"0x000000B9:Iteration of basic cycle #1",
+			"0x000000B2:Iteration of basic cycle #2",
+			"0x000000B3:Iteration of basic cycle #3",
+			"0x00000031:Number @",
+			"0x00000032:Number @",
+			"0x00000033:Number @",
+			"0x00002081:Iteration of current cycle #1",
+			"0x00002082:Iteration of current cycle #2",
+			"0x00002083:Iteration of current cycle #3",
+			"0x00002070:Index of basic row",
+			"0x0000239A:Clear status",
+			"0x000023F1:Adjust current intervals and wait for interval - \xBD@..999\xBC\xBD@	Reset to default interval - 0@		Wait for interval - @",
+			"0x00000030:Number @",
+			"0x00000028:Open the bracket			Loop for n-times - 1(...) .. 999(...)",
+			"0x00000029:Closing bracket",
+			"0x00002080:Index of current row",
+			"0x00002399:Show status",
+			"0x24090009:Tabulation",
+			"0x21E50009:Tabulation",
+			"0x0003267D:Special FX				---",
+			"0x000023F2:Timing				---",
+			"0x000026D4:Halt",
+			"0x00022318:Labels",
+			"0x000026A0:Alert",
+			"0x000027B0:Replay line of paragraph",
+			"0x000126F5:Render",
+			"0x23CE000D:Enter",
+			"0x0000215E:7/8",
+			"0x0000215D:5/8",
+			"0x00002157:3/5",
+			"0x00A70037:Define/append paragraph #7		Select paragraph #7",
+			"0x00A70038:Define/append paragraph #8		Select paragraph #8",
+			"0x00A70039:Define/append paragraph #9		Select paragraph #9",
+			"0x00002150:1/7",
+			"0x0000215B:1/8",
+			"0x00002151:1/9",
+			"0x000000BE:3/4",
+			"0x00002158:4/5",
+			"0x0000215A:5/6",
+			"0x00A70034:Define/append paragraph #4		Select paragraph #4",
+			"0x00A70035:Define/append paragraph #5		Select paragraph #5",
+			"0x00A70036:Define/append paragraph #6		Select paragraph #6",
+			"0x000000BC:1/4",
+			"0x00002155:1/5",
+			"0x00002159:1/6",
+			"0x00002156:2/5",
+			"0x00002154:2/3",
+			"0x0000215C:3/8",
+			"0x00A70031:Define/append paragraph #1		Select paragraph #1",
+			"0x00A70032:Define/append paragraph #2		Select paragraph #2",
+			"0x00A70033:Define/append paragraph #3		Select paragraph #3",
+			"0x00002152:1/10",
+			"0x000000BD:1/2",
+			"0x00002153:1/3",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00A70030:Define/append paragraph #0		Select paragraph #0",
+			"0x000000A7:Define/append paragraph - @0 .. @9	Select paragraph - @0 .. @9		Switch to paragraph row - 0@ .. 999@",
+			"0x00A70028:Active paragraph settings - @(...)",
+			"0x00000025:percent",
+			"0x00002030:per mille",
+			"0x00002031:per 10 milles"
+		],	[
+		],	[
+			"0x00A70037:Define/append paragraph #7		Select paragraph #7",
+			"0x00A70038:Define/append paragraph #8		Select paragraph #8",
+			"0x00A70039:Define/append paragraph #9		Select paragraph #9",
+			"0x00002498:Sub-label 17",
+			"0x00002499:Sub-label 18",
+			"0x0000249A:Sub-label 19",
+			"0x00000020:",
+			"0x00002470:Interactive label 17	Num-pad 7",
+			"0x00002471:Interactive label 18	Num-pad 8",
+			"0x00002472:Interactive label 19	Num-pad 9",
+			"0x00A70034:Define/append paragraph #4		Select paragraph #4",
+			"0x00A70035:Define/append paragraph #5		Select paragraph #5",
+			"0x00A70036:Define/append paragraph #6		Select paragraph #6",
+			"0x00002495:Sub-label 14",
+			"0x00002496:Sub-label 15",
+			"0x00002497:Sub-label 16",
+			"0x00000020:",
+			"0x0000246D:Interactive label 14	Num-pad 4",
+			"0x0000246E:Interactive label 15	Num-pad 5",
+			"0x0000246F:Interactive label 16	Num-pad 6",
+			"0x00A70031:Define/append paragraph #1		Select paragraph #1",
+			"0x00A70032:Define/append paragraph #2		Select paragraph #2",
+			"0x00A70033:Define/append paragraph #3		Select paragraph #3",
+			"0x00002492:Sub-label 11",
+			"0x00002493:Sub-label 12",
+			"0x00002494:Sub-label 13",
+			"0x00000020:",
+			"0x0000246A:Interactive label 11	Num-pad 1",
+			"0x0000246B:Interactive label 12	Num-pad 2",
+			"0x0000246C:Interactive label 13	Num-pad 3",
+			"0x00A70030:Define/append paragraph #0		Select paragraph #0",
+			"0x00000020:",
+			"0x00000020:",
+			"0x0000249B:Sub-label 20",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00002473:Interactive label 20	Num-pad 0",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00002488:Sub-label 1",
+			"0x00002489:Sub-label 2",
+			"0x0000248A:Sub-label 3",
+			"0x0000248B:Sub-label 4",
+			"0x0000248C:Sub-label 5",
+			"0x0000248D:Sub-label 6",
+			"0x0000248E:Sub-label 7",
+			"0x0000248F:Sub-Label 8",
+			"0x00002490:Sub-label 9",
+			"0x00002491:Sub-label 10",
+			"0x00002460:Interactive label 1		The key 1",
+			"0x00002461:Interactive label 2		The key 2",
+			"0x00002462:Interactive label 3		The key 3",
+			"0x00002463:Interactive label 4		The key 4",
+			"0x00002464:Interactive label 5		The key 5",
+			"0x00002465:Interactive label 6		The key 6",
+			"0x00002466:Interactive label 7		The key 7",
+			"0x00002467:Interactive label 8		The key 8",
+			"0x00002468:Interactive label 9		The key 9",
+			"0x00002469:Interactive label 10	The key 0",
+			"0x000024C6:Interactive label Q		The key Q",
+			"0x000024CC:Interactive label W		The key W",
+			"0x000024BA:Interactive label E		The key E",
+			"0x000024C7:Interactive label R		The key R",
+			"0x000024C9:Interactive label T		The key T",
+			"0x000024CE:Interactive label Y		The key Y",
+			"0x000024CA:Interactive label U		The key U",
+			"0x000024BE:Interactive label I		The key I",
+			"0x000024C4:Interactive label O		The key O",
+			"0x000024C5:Interactive label P		The key P",
+			"0x000024B6:Interactive label A		The key A",
+			"0x000024C8:Interactive label S		The key S",
+			"0x000024B9:Interactive label D		The key D",
+			"0x000024BB:Interactive label F		The key F",
+			"0x000024BC:Interactive label G		The key G",
+			"0x000024BD:Interactive label H		The key H",
+			"0x000024BF:Interactive label I		The key J",
+			"0x000024C0:Interactive label K		The key K",
+			"0x000024C1:Interactive label L		The key L",
+			"0x23CE000D:Enter",
+			"0x21E50009:Tabulation",
+			"0x000024CF:Interactive label Z		The key Z",
+			"0x000024CD:Interactive label X		The key X",
+			"0x000024B8:Interactive label C		The key C",
+			"0x000024CB:Interactive label V		The key V",
+			"0x000024B7:Interactive label B		The key B",
+			"0x000024C3:Interactive label N		The key N",
+			"0x000024C2:Interactive label M		The key M",
+			"0x24090009:Tabulation",
+			"0x003020E3:Number key 0"
+		],	[
+			"0x00002679:Special FX #7			---",
+			"0x0000267A:Special FX +			---",
+			"0x0000267D:Special FX ++			---",
+			"0x00002227:Logical AND",
+			"0x000021E1:Fade in FX - @\u2878\u283F\u2887	Increment the keyboard selector - @\u2328",
+			"0x00002676:Special FX #4			---",
+			"0x00002677:Special FX #5			---",
+			"0x00002678:Special FX #6			---",
+			"0x00002228:Logical OR",
+			"0x000021E3:Fade out FX - @\u2878\u283F\u2887	Decrement the keyboard selector - @\u2328",
+			"0x00002673:Special FX #1			---",
+			"0x00002674:Special FX #2			---",
+			"0x00002675:Special FX #3			---",
+			"0x00002295:Logical XOR",
+			"0x000033B3:Set the timer delaying interval(ms) - 1@ .. 10000@	Reset coefficients - 0@ / @	Change coefficients - \xBD@..9\xBC\xBD@",
+			"0x00002672:Special FX #0			---",
+			"0x0000267A:Special FX				---",
+			"0x0000267B:Row repeating n-times - 1@ .. 999@",
+			"0x00002328:Select keyboard - 0@ .. 9@		Set keyboards order - 11@ .. 999999999@",
+			"0x00003390:Set the LEDs refreshing frequency(Hz) - 1@ .. 1000@",
+			"0x00002637:Trigram FX #7 - Earth		---",
+			"0x00000020:",
+			"0x00000020:",
+			"0x00002710:High bright",
+			"0x00000020:",
+			"0x00002634:Trigram FX #4 - Wind		---",
+			"0x00002635:Trigram FX #5 - Water		---",
+			"0x00002636:Trigram FX #6 - Mountain		---",
+			"0x0000270F:Middle bright",
+			"0x00000020:",
+			"0x00002631:Trigram FX #1 - Lake		---",
+			"0x00002632:Trigram FX #2 - Fire		---",
+			"0x00002633:Trigram FX #3 - Thunder		---",
+			"0x0000270E:LowerВ bright",
+			"0x00000020:",
+			"0x00002630:Trigram FX #0 - Heaven		---",
+			"0x000025B2:Scroll up",
+			"0x000025B6:Scroll right",
+			"0x00002935:Go to next line in paragraph	Skip lines in paragraph - 1@ .. 999@",
+			"0x00002397:Push history			--- comming soon",
+			"0x00000020:",
+			"0x000025C0:Scroll left",
+			"0x000025BC:Scroll down",
+			"0x00002934:Go to previous line of paragraph	Back up to lines in paragraph - 1@ .. 999@",
+			"0x00002398:Pop history				--- comming soon"
+		]
+	];
+	hTabs[0] = document.getElementById("Numbers");
+	hTabs[1] = document.getElementById("Brailles");
+	hTabs[2] = document.getElementById("Operators");
+	hTabs[3] = document.getElementById("Effects");
+	CINEMA.cnv = document.getElementById("Movie");
+	CINEMA.ctx = CINEMA.cnv.getContext("2d");
+	if(CanvasRenderingContext2D.prototype.ellipse == undefined)
+		CanvasRenderingContext2D.prototype.ellipse = function(x, y, radiusX, radiusY, rotation, startAngle, endAngle, antiClockwise) {
+			this.save(); this.translate(x, y); this.rotate(rotation); this.scale(radiusX, radiusY);
+			this.arc(0, 0, 1, startAngle, endAngle, antiClockwise);
+			this.restore();
+		}
+	CINEMA.shoots = document.getElementById("Shoots");
+	CINEMA.shootx = CINEMA.shoots.getContext("2d");
+	//setInterval("actor_cloud(c2d, clouds[0])", 250);
+	var	hTab, hRow, hCell, pattern, hMode;
+	var	x, y, i, n, order, tmp;
+	var	order = 34290810;
+	//
+	hTab = hTabs[(order - order % 10) / 10 % 10];
+/*	for(y = -1; y < 8; ++ y) {
+		hRow = hTab.insertRow(y + 1);
+		for(x = -1; x < 8; ++ x) {
+			tmp = x < 0 ? y < 0 ? [0x28C0, "Using dots-pattern"] : [0x2880 + y, "Left dots only"] : y < 0 ? [0x2840 + x * 8, "Right dots only"] : [0x2800 + x * 8 + y, "Paste this six dots"];
+			hCell = hRow.insertCell(x + 1);
+			hCell.className = "operator";
+			hCell.width = "32px";
+			hCell.title = tmp[1];
+			hCell.innerHTML = "&#" + tmp[0] + ";";
+			hCell.innerHTML = "<span style=position:absolute>&#" + tmp[0] + ";</span><span style=color:yellow>&#x283F;</span>";
+			hCell.title = hCell.title.replace(/[\t]+/g, "\r\n").replace(/@/g, hCell.textContent);
+			hCell.addEventListener("click", insertOperator);
+		}
+	}*/
+	hTab.style.display = "none";
+	hTab.addEventListener("mouseover", holdingTable);
+	hTab.addEventListener("mouseout", hidingTable);
+	do {
+		order = (order - order % 100) / 100;
+		iTabs = (order - order % 10) / 10 % 10;
+		hTab = hTabs[iTabs];
+		pattern = layouts[iTabs];
+		if(iTabs > 0) {
+			hTab.addEventListener("mouseover", holdingTable);
+			hTab.addEventListener("mouseout", hidingTable);
+		}
+		for(y = 0; y < 9; ++ y) {
+			hRow = hTab.insertRow(y);
+			for(x = 0; x <= order % 10; ++ x) {
+				tmp = pattern.shift().split(":");
+				hCell = hRow.insertCell(x);
+				hCell.className = "operator";
+				hCell.width = "32px";
+				hCell.title = tmp[1];
+				tmp = parseInt(tmp[0]);
+				if(tmp < 65535) {
+					hCell.innerHTML = "&#" + tmp + ";";
+					hCell.addEventListener("click", insertOperator);
+				} else
+				if((tmp >> 16) < 9) {
+					hCell.className = "switch_" + (tmp >> 16);
+					hCell.innerHTML = "&#" + (tmp & 65535) + ";";
+					switch(tmp >> 16) {
+					case 1:	hCell.addEventListener("click", function() {
+						hTabs[iTabs].style.display = 'none'; iTabs = 1;
+						hTabs[iTabs].style.display = 'block';		});
+						break;
+					case 2:	hCell.addEventListener("click", function() {
+						hTabs[iTabs].style.display = 'none'; iTabs = 2;
+						hTabs[iTabs].style.display = 'block';		});
+						break;
+					case 3:	hCell.addEventListener("click", function() {
+						hTabs[iTabs].style.display = 'none'; iTabs = 3;
+						hTabs[iTabs].style.display = 'block';		});
+						break;
+					}
+				} else {
+					hCell.innerHTML = "&#" + (tmp >> 16) + ";&#" + (tmp & 65535) + ";";
+					hCell.addEventListener("click", insertOperator);
+				}
+				hCell.title = hCell.title.replace(/[\t]+/g, "\r\n").replace(/@/g, hCell.textContent);
+			}
+		}
+		hTab.style.display = "none";
+	} while(order >= 100);
+	iTabs = 0;
+	hTabs[iTabs].style.display = "block";
+	CINEMA.Scenario = {
+		pSection	:null,
+		pDots		:[],
+		pRems		:[],
+		iTags		:[],
+		iKeys		:[],
+		iReps		:-1,
+		pReps		:null,
+		nReps		:[],
+		dReps		:[],
+		iLoop		:-1,
+		iRow		:-1,
+		ptr		:null,
+		iDelayPeriod	:-1,
+		iDelayMultiplier:-1,
+		iDelayDivider	:-1,
+		iNumerator	:-1,
+		iDenominator	:-1,
+		iKeyboard	:-1,
+		jSection	:-1
+	};
+	for(i = 0; i < 10; ++ i) {
+		CINEMA.Sections[i] = {
+			pSection	:null,
+			pDots		:[],
+			pRems		:[],
+			iTags		:[],
+			iKeys		:[],
+			iReps		:-1,
+			pReps		:null,
+			nReps		:[],
+			dReps		:[],
+			iLoop		:-1,
+			iRow		:-1,
+			ptr		:null,
+			iDelayPeriod	:-1,
+			iDelayMultiplier:-1,
+			iDelayDivider	:-1,
+			iNumerator	:-1,
+			iDenominator	:-1,
+			iKeyboard	:-1,
+			jSection	:-1
+		};
+		CINEMA.Measures[i] = {
+			cmd		:"",
+			ptr		:0,
+			iRow		:0,
+			iDelayMul	:1,
+			iDelayDiv	:1,
+			tmp	:{
+				iNumerator	:-1,
+				iDenominator	:-1
+			},
+			log	:{
+				args: [],
+				text: ""
+			}
+		};
+	}
+	hScenario  = document.getElementById("Scenario");
+	tmp = hScenario.value;
+	for(i = 0, n = 0; i < tmp.length; ++ i) {
+		if(tmp.charAt(i) == '\r' || tmp.charAt(i) == '\n') {
+			n = 0;
+			continue;
+		}
+		if(tmp.charAt(i) == '\t') {
+			if((n & 7) < 7)
+				tmp = tmp.substr(0, i) + "\u21E5" + tmp.substr(i ++);
+			else
+				tmp = tmp.substr(0, i) + "\u21E5" + tmp.substr(i ++ + 1);
+			n = (n | 7) + 1;
+		} else
+			++ n;
+	}
+	hScenario.value = tmp;
+	hScenario.addEventListener("keydown",
+		function(e) {
+			if(e.keyCode == VK.TAB) {
+				insertAtCursor(e.target, String.fromCharCode(0x21E5, 0x0009));
+				window.event.returnValue = false;
+			} else
+			if((e.keyCode == VK.RETURN) && e.shiftKey) {
+				parser();
+				window.event.returnValue = false;
+			}
+		}
+	);
+	hMode = document.getElementById("Mode");
+	hMode.addEventListener("keydown",
+		function(e) {
+			var	i = -1;
+			if(0x30 <= e.keyCode && e.keyCode <= 0x39)
+				i = (e.keyCode - 0x30 + 9) % 10 + 1;
+			else
+			if(VK.NUMPAD0 <= e.keyCode && e.keyCode <= VK.NUMPAD9)
+				i = (e.keyCode - VK.NUMPAD0 + 9) % 10 + 11;
+			else
+			if(0x41 <= e.keyCode && e.keyCode <= 0x5A)
+				i = e.keyCode - 0x40 + 20;
+			if(i > 0) {
+				i = CINEMA.Scenario.iKeys[i];
+				if(i > 0) 
+					CINEMA.Scenario.iRow = i;
+			}
+		}
+	);
+	hMode.addEventListener("keyup",
+		function(e) {
+			e.target.value = "";
+		}
+	);
+	ShowLEDs(CINEMA);
+	url = window.location.href.split("?");
+	if(url.length > 1) {
+		url.pop().split("&")
+		.forEach(function(str) {
+			str = str.split("=");
+			switch(str[0]) {
+			case "script":
+				document.getElementById("Scenario").value = unescape(str[1].replace(/%25u/g, "%u"));
+				break;
+			}
+			return true;
+		});
+		url = url.join("?");
+	} else
+		url = window.location.href;
+	parser();
+}
+function	Recording(nFrom, nEach, nFrames) {
+	Bitmaps = [];
+	gifTimes = +nFrames;
+	gifEach = +nEach;
+	gifBegin = +nFrom;
+	document.getElementById("Capture").style.display = "none";
+	document.getElementById("Progress").max = +nFrames;
+	document.getElementById("Progress").style.display = "inline-block";
+	document.getElementById("Process").innerHTML = "CAPTURING...";
+	parser();
+}
+</script>
+<script src='http://cdn.rawgit.com/antimatter15/jsgif/master/Demos/b64.js'></script>
+<script src='http://cdn.rawgit.com/antimatter15/jsgif/master/LZWEncoder.js'></script>
+<script src='http://cdn.rawgit.com/antimatter15/jsgif/master/NeuQuant.js'></script>
+<script src='http://cdn.rawgit.com/antimatter15/jsgif/master/GIFEncoder.js'></script>
+</head>
+<body onload='main()'>
+<table>
+<tr valign=top style=display:none>
+<td colspan=2><pre id=leds></pre></td></tr>
+<tr><td>
+<textarea id='Scenario' rows=45 cols=80 title='Press SHIFT+ENTER for reparse...'>
+1$	Реплики людей
+	КАМЕРА			Подготовим КАМЕРУ,
+		Участники	добавив в кадр
+			ПОГОДА	синтез погодных явлений
+			ЧЕЛОВЕК	и коллектив актёров
+	ПОГОДА			Настраиваем ПОГОДУ
+		Динамика=99-699	От 99 до 699 в минуту
+		Месяц=6-6	Месяц - Июнь
+		День=6-6	Девять часов дня
+		Солнце=90-90	Девяносто процентов света
+		Ветерка=1-5	Ветренность от 1 до 5
+		Облаков=1-3	Облачности от 1 до 3
+		Осадков=0-1	Осадков практически нет
+		Молний=0-0	Молний совсем нету
+		0:3-0:3		Ждём ровно 3 секунды...
+		Месяц=6-6
+		День=7-7
+		Солнце=90-90
+		Ветерка=1-5
+		Облаков=1-3
+		Осадков=0-1
+		Молний=0-0
+		0:3-0:3		Ждём ровно 3 секунды...
+		День=8-8	Теперь - 11 часов дня
+		Солнце=100-100	Солнце максимально ярко
+		0:1-0:1		А вот через 1 секунду...
+		День=9-9	Уже полдень
+		Ветерка=5-10	Ветер слегка усиливается
+		Облаков=10-15	Облаков несколько больше
+		Осадков=8-12	Возможны и осадки
+		0:4-0:4		Спустя 4 секунды...
+		День=10-10	Уже час дня
+		Ветерка=10-15	Продолжает усиливаться ветер
+		Облаков=20-25	Облаков заметно больше
+		Осадков=50-75	Начинаются осадки дождя
+		0:4-0:4
+		День=11-11	
+		Ветерка=15-30
+		Облаков=30-40
+		Осадков=100-120
+		0:11-0:11
+		День=12-12	Когда станет 3 часа дня
+		Солнце=75-80	Солнечный свет станет слабее
+		Ветерка=35-50	Из-за существенного ветра
+		Облаков=50-100	Значительной облачности
+		Молний=3-15 13	Со вспышками молний
+		0:7-0:7
+		День=13-13
+		Солнце=50-65
+		0:20-0:20
+		День=14-14
+		Солнце=80-83
+		Ветерка=3-9
+		Облаков=3-9
+		Молний=0-0
+		Осадков=0-1
+		0:5-0:5
+		День=15-15
+		0:5-0:5
+		День=16-16
+		Солнце=100-100
+Здесь описываем роли двух актёров
+	ЧЕЛОВЕК Вася Пупкин	В кадре - Вася Пупкин!
+		Акт		Описываем его действия...
+			Старт в конце
+			Бежать на восток
+			Бежать на восток
+			Вдаль
+			Вдаль
+			0:3-0:3
+		Акт
+			Бежать в центр
+			Вблизь
+			0:3-0:3
+		Акт
+			Прыгать
+			Шагать к John Smith
+			Махать
+			Вблизь
+		Акт
+			Махать
+		Речь		Описываем его реплики...
+			Привет!
+			:)
+			0:02-0:02
+			:)
+		Акт
+			Прыгать
+			Шагать
+			Махать
+			Вблизь
+			0:01-0:01
+		Акт
+			Прыгать
+		Речь
+			Привет!
+			Сегодня прекрасная погода!
+			:D
+		Речь
+			:)
+			0:5-0:5
+			Прикольненько!!!
+			:p
+		Акт
+			Влево
+			Махать
+			0:10-0:10
+		Речь
+			Интересно, его смартфон не
+			боится ли грозовых разрядов???
+			:D
+		Акт
+			Прыгать
+			Махать
+			0:04-0:04
+		Речь
+			:D
+		Акт
+			Прыгать
+			Махать
+			Махать
+			Шагать до John Smith
+			0:15-0:15
+		Акт
+			Прыгать
+			0:14-0:14
+		Речь
+			:D
+		Акт
+			Бежать к центру
+			0:5-0:5
+		Речь
+			Автор идеи и программист
+			:-)
+			©2018 Аликберов
+		Акт
+			Прыгать
+			Махать
+			0:8-0:8
+	ЧЕЛОВЕК John Smith	MAN John Smith
+		Акт			Action
+			Старт в начале		Start in begin
+			Вдаль			Far
+			0:6-0:6			0:6-0:6
+		Акт			Action
+			Шагать к центру		Walk to center
+			Прыгать			Jump
+			Вблизь			Near
+		Речь			Speech
+			Привет!			Hello!
+			:)			:)
+			0:03-0:03		0:3-0:3
+		Акт			Action
+			Шагать			Walk
+			Влево			Left
+		Речь			Speech
+			Не думаю, что стоило выходить
+			:/
+			0:5-0:5
+		Акт			Action
+			Махать			Wave
+		Речь			Speech
+			Вау!!!			Wow!
+			:o			:o
+			0:3-0:3			0:3-0:3
+			Пойду-ка я домой!	Let me back to home!
+			Не хватало ещё промочить	My smartphone
+			новенький смартфон!!!	may be drenching
+			:(			:(
+			0:5-0:5			0:5-0:5
+			:(			:(
+		Акт			Action
+			Прыгать			Jump
+			Бежать на запад		Run to west
+			Махать			Wave
+			0:11-0:11		0:11-0:11
+		Речь			Speech
+			:)			:)
+		Акт			Action
+			Бежать на восток	Run to east
+			Прыгать			Jump
+			0:15-0:15		0:15-0:15
+		Речь			Speech
+			Подготовлено		Creating for april 1...
+			специально		Idea and code by
+			на 1 апреля...		©2018 Alikberov
+			:-D			:-D
+		Акт			Action
+			Махать			Wave
+			0:4-0:4			0:4-0:4
+		Речь			Speech
+			:)			:)
+		Акт			Action
+			Махать			Wave
+			Прыгать			Jump
+			Шагать к началу		Walk to begin
+			0:4-0:4			0:4-0:4
+		Речь			Speech
+			Источник:		Source:
+			:-)
+			http://github.com/Alikberov/Fantaseur</textarea></td>
+<td valign='top'><canvas id='Movie' width='640' height='480'></canvas>
+<table id='Brailles'>
+<tr><th id='Process'>Cartoon</th></tr>
+<tr><td><span id='Capture'>From<input id='Beginning' type='number' min='0' max='9999' value='3' /> Length<input id='Duration' type='number' min='1' max='500' value='384' /> Each<input id='Each' type='number' min='1' max='25' value='2' />
+<button onclick='Recording(document.getElementById("Beginning").value, document.getElementById("Each").value, document.getElementById("Duration").value)'>Generate GIF</button></span>
+<progress id='Progress' style='display:none; width:480px'></progress></td></tr>
+<tr><td><a id='Uploader' download='Fantaseur.gif' href='#' alt='Click for save' target='blank'><canvas id='Shoots' width='320' height='240' style=display:none></canvas><img id='cartoon' width='480' height='360' /></a></td></tr></table>
+<table id='Numbers'></table>
+<table id='Operators'></table>
+<table id='Effects'></table></td></tr></table>
+<input id='Mode' size='80' onfocus='parser()'
+	accessKey='C' placeholder='Change "Glazeur-scenario" mode - press 0-9 or A-Z keys' />
+<a href='' id=Progress title='Click for share'>Share this scenario</a>
+<pre id='debugger' style=display:none></pre>
+<table id='environment' style=display:none></table>
+<p style=text-align:center><a href='http://github.com/Alikberov'>Visit me now</a><br />&copy;2018 Alikberov</p>
+</body>
