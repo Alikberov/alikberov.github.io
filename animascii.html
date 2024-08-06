@@ -1,0 +1,255 @@
+<html>
+<head>
+<title>ASCII Animation</title>
+<script>
+var	hParse	= null;
+var	hTimer	= null;
+var	hScene	= null;
+var	hBoxes	= null;
+var	hStage	= null;
+var	hMovie	= null;
+var	aScene	= [];
+var	aBoxes	= {};
+var	aStage	= {};
+var	aBullets= [];
+var	iPhase	= 0;
+var	iDelay	= 4;
+//
+var	i, j;
+var	s, c;
+var	h, v;
+var	x, y;
+var	obj;
+var	box;
+var	res;
+
+function step() {
+	var	crash;
+	for(i = 0; i < aBullets.length; ++ i) {
+		obj = aBullets[i];
+		if(obj.x >= 0 && obj.y >= 0 && obj.x < hScene.cols && obj.y < hScene.rows) {
+			aScene[obj.y][obj.x] = "*";
+			obj.x += obj.dx;
+			obj.y += obj.dy;
+		} else
+			aBullets.splice(i --, 1);
+	}
+	for(i in aStage) {
+		obj = aStage[i];
+		if(iPhase == 0) {
+			do {
+				crash = false;
+				c = obj.s.charAt(0);
+				obj.s = obj.s.substr(1);
+				if(c != "")
+					switch(c) {
+					case ">":	obj.x ++; break;
+					case "v":	obj.y ++; break;
+					case "<":	obj.x --; break;
+					case "^":	obj.y --; break;
+					default:
+						if("#$%&*@_|".indexOf(c) >= 0)
+							obj.c = c;
+						else
+						if(isFinite(c))
+							obj.i = +c,
+							crash = true;
+						else
+							crash = true;
+					}
+			} while(crash);
+		}
+		if(obj.i > 0 && obj.c in aBoxes) {
+			box = aBoxes[obj.c][obj.i - 1];
+			s = box.split(/\t/);
+			crash = 0;
+			do {
+				for(v = 0; v < s.length; ++ v)
+					for(h = 0; h < s[v].length; ++ h) {
+						x = h + obj.x - 1;
+						y = v + obj.y - 1;
+						switch("NEWS".indexOf(s[v][h])) {
+						case 0: if(iPhase == 2) aBullets.push({x: x - 2, y: y - 2, dx: 0, dy: -1}); break;
+						case 1: if(iPhase == 2) aBullets.push({x: x + 2, y: y, dx: +1, dy: 0}); break;
+						case 2: if(iPhase == 2) aBullets.push({x: x - 4, y: y, dx: -1, dy: 0}); break;
+						case 3: if(iPhase == 2) aBullets.push({x: x - 2, y: y + 2, dx: 0, dy: +1}); break;
+						default:
+							if(x >= 0 && y >= 0 && x < hScene.cols && y < hScene.rows) {
+								if(crash == 1)
+									aScene[y][x] = "ж";
+								else
+								if(aScene[y][x] != " ")
+									crash = -1;
+								else
+									aScene[y][x] = s[v][h];
+							}
+						}
+					}
+				if(crash == 1)
+					obj.i = 0;
+				if(crash == -1)
+					crash = 1;
+				else
+					crash = 0;
+			} while(crash);
+		}
+	}
+	res = [];
+	aScene.forEach(
+		function(arr) {
+			res.push(arr.join(""));
+		}
+	);
+	hMovie.textContent = res.join("\r\n");
+}
+
+function draw() {
+	for(i = 0; i < aBullets.length; ++ i) {
+		obj = aBullets[i];
+		if(obj.x >= 0 && obj.y >= 0 && obj.x < hScene.cols && obj.y < hScene.rows) {
+			switch(aScene[obj.y][obj.x]) {
+			case "(":
+				if(obj.dx > 0)
+					obj.dy = Math.random() > 0.5 ? -1 : +1,
+					obj.dx = -obj.dx,
+					obj.x += obj.dx,
+					obj.y += obj.dy;
+				break;
+			case ")":
+				if(obj.dx < 0)
+					obj.dy = Math.random() > 0.5 ? -1 : +1,
+					obj.dx = -obj.dx,
+					obj.x += obj.dx,
+					obj.y += obj.dy;
+				break;
+			}
+		}
+	}
+	for(i = 0; i < hScene.rows; ++ i)
+		for(j = 0; j < hScene.cols; ++ j)
+			aScene[i][j] = " ";
+	iPhase = (iPhase + 1) % iDelay;
+	step();
+	res = [];
+	aScene.forEach(
+		function(arr) {
+			res.push(arr.join(""));
+		}
+	);
+	hMovie.textContent = res.join("\r\n");
+	clearTimeout(hTimer);
+	hTimer = setTimeout(draw, 100);
+}
+
+function parse() {
+	aScene	= [];
+	aBoxes	= {};
+	aStage	= {};
+	aBullets= [];
+	hBoxes.value.split(/\r?\n/)
+	.forEach(
+		function(str) {
+			if("" != str) {
+				str = str.split(/\t+/);
+				c = str[0];
+				if("#$%&*@_|".indexOf(c) >= 0) {
+					if(!(c in aBoxes)) {
+						aBoxes[c] = [];
+						for(i = 1; i < str.length; ++ i)
+							aBoxes[c].push("");
+					}
+					for(i = 1; i < str.length; ++ i)
+						aBoxes[c][i - 1] += aBoxes[c][i - 1] == "" ? str[i] : "\t" + str[i];
+				}
+			}
+		}
+	);
+	for(i = 0; i < hScene.rows; ++ i) {
+		aScene[i] = [];
+		for(j = 0; j < hScene.cols; ++ j)
+			aScene[i].push(" ");
+	}
+	i = 0;
+	hScene.value.split(/\r?\n/)
+	.forEach(
+		function(str) {
+			j = 0;
+			str.split("")
+			.forEach(
+				function(ascii) {
+					if("ABCDEFGHIJKLMNOPQRSTUVWXYZ".indexOf(ascii) >= 0)
+						aStage[ascii] = {
+							x	:j,
+							y	:i,
+							s	:"",
+							c	:"",
+							i	:-1
+						}
+					++ j;
+				}
+			);
+			++ i;
+		}
+	);
+	hStage.value.split(/\r?\n/)
+	.forEach(
+		function(str) {
+			c = str.charAt(0);
+			if(c in aStage)
+				aStage[c].s += str.substr(1);
+		}
+	);
+	step();
+}
+function main() {
+	hScene = document.getElementById("Scene");
+	hBoxes = document.getElementById("Boxes");
+	hStage = document.getElementById("Stage");
+	hMovie = document.getElementById("Movie");
+	parse();
+    draw();
+}
+</script>
+</head>
+<body onload='main()'>
+<table><tr>
+<td><pre id=Movie style="border:thin solid black; display:inline block"></pre></td>
+<!--
+................................................................................
+-->
+<td><textarea id=Scene rows=25 cols=80 onkeyup='clearTimeout(hParse); hParse = setTimeout(parse, 1500)'>
+
+ A
+                                N  M
+
+                                                   T
+                      B
+</textarea></td></tr></table>
+<button onclick="draw()">Step</button><br />
+<textarea id=Boxes rows=25 cols=80 onkeyup='clearTimeout(hParse); hParse = setTimeout(parse, 1500)'>
+@	ШШШ	ШШШ	ШШШ	ШvШ	Е-Е	Е-Е	Е-Е	ЕvЕ
+@	(О=	(О)	=О)	(О)	ЕО=	ЕОЕ	=ОЕ	ЕОЕ
+@	ШШШ	Ш^Ш	ШШШ	ШШШ	Е-Е	Е^Е	Е-Е	Е-Е
+
+*	ШШШ	ШШШ	ШШШ	ШЖШ	Е-Е	Е-Е	Е-Е	ЕЖЕ
+*	(ОЖE	(О)S	ЖО)W	(О)N	ЕОЖE	ЕОЕS	ЖОЕW	ЕОЕN
+*	ШШШ	ШЖШ	ШШШ	ШШШ	Е-Е	ЕЖЕ	Е-Е	Е-Е
+
+|	..ш..
+|	.шшш.
+|	шшшшш
+|	..ж..
+|	..ж..
+
+&	 o 	 о 	 о 	 ö 	 Ö 	 Ö 
+&	/w|	/w\	|w\	(w)	=w\W	/w=E
+&	=Л_	_M_	_r=	_М_	_М_	_М_
+</textarea>
+<textarea id=Stage rows=25 cols=80 onkeyup='clearTimeout(hParse); hParse = setTimeout(parse, 1500)'>
+T|1
+M&2  1>2>3>2>1>2>6>2>1v5v3v45>2<5>2<2>4<2>5<5>2<5>4<2>5<2>5<5>4<
+N&2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>4<2>
+A@1>>>>>>>>>>>>>>>>2*@>>>>>>>>>>>>>>>>6vvv*7v^5vv7vvvv^^vv^^vv@
+B@5vvvvv*@v4>*@<>>>>*@8^^^*^@3<<<<<<<<<<<<<<<<2<<<1<<<*@<2<3<
+</textarea>
+</body>
