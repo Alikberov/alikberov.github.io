@@ -2,18 +2,9 @@
 <head>
 <title>Inter Windows</title>
 
-<script type=module>
-import potpack from "https://mapbox.github.io/potpack/index.js"
-window.potpack = potpack;
-</script>
-
 <script>
 var	scripts_counter = 0;
 const	scripts_list = [
-	"omni-window.js",
-	"omni-icon.js",
-//	"https://mapbox.github.io/potpack/index.js",
-//	"https://raw.githubusercontent.com/mapbox/potpack/main/index.js",
 	"https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js",
 	"https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js",
 	"https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js",
@@ -24,21 +15,17 @@ function script_loaded() {
 	var	hfbs = document.getElementById("FireBaseStatus");
 	hfbs.title = `${scripts_counter} scripts left`;
 	console.log(`${-- scripts_counter} scripts left`);
-	console.log(`${this.type}`);
 	if(!scripts_counter) {
 		document.getElementById("DoFloating").checked = true;
 		[...document.getElementsByTagName("omni-window")].pop().bringToTop();
 		hfbs.title = "Firebase is ready!";
-		setTimeout(Connect, 5000);
+		Connect();
 	}
 }
 
 for(script_url of scripts_list) {
 	var script_tag = document.createElement("script");
-	if(script_url.match(/github/)) {
-		script_tag.setAttribute("type", "module");
-	} else
-		script_tag.setAttribute("src", script_url);
+	script_tag.setAttribute("src", script_url);
 	script_tag.addEventListener("load", script_loaded);
 	document.head.appendChild(script_tag);
 	scripts_counter ++;
@@ -67,13 +54,12 @@ function Connect() {
 					var lnk = document.createElement("img");
 					lnk.src = "https://img.icons8.com/?size=100&id=67369&format=png&color=000000";
 					lnk.addEventListener("click", (function(e) {
-							//var	hOmni = document.createElement("omni-window");
-							//hOmni.appendChild(this.img);
-							//document.body.appendChild(hOmni);
-							document.getElementById("Previewer").src = this.img.src;
+							var	hOmni = document.createElement("omni-window");
+							hOmni.appendChild(this.img);
+							document.body.appendChild(hOmni);
 						}).bind({img: img})
 					);
-					document.getElementById("Files").appendChild(lnk);
+					document.body.appendChild(lnk);
 				}
 				reader.readAsDataURL(file); // start reading the file data.
 			}
@@ -83,6 +69,284 @@ function Connect() {
 }
 </script>
 
+<script>
+</script>
+
+<script>
+function potpack(boxes) {
+
+    // calculate total box area and maximum box width
+    let area = 0;
+    let maxWidth = 0;
+
+    for (const box of boxes) {
+        area += box.w * box.h;
+        maxWidth = Math.max(maxWidth, box.w);
+    }
+
+    // sort the boxes for insertion by height, descending
+    boxes.sort((a, b) => b.h - a.h);
+
+    // aim for a squarish resulting container,
+    // slightly adjusted for sub-100% space utilization
+    const startWidth = Math.max(Math.ceil(Math.sqrt(area / 0.95)), maxWidth);
+
+    // start with a single empty space, unbounded at the bottom
+    const spaces = [{x: 0, y: 0, w: startWidth, h: Infinity}];
+
+    let width = 0;
+    let height = 0;
+
+    for (const box of boxes) {
+        // look through spaces backwards so that we check smaller spaces first
+        for (let i = spaces.length - 1; i >= 0; i--) {
+            const space = spaces[i];
+
+            // look for empty spaces that can accommodate the current box
+            if (box.w > space.w || box.h > space.h) continue;
+
+            // found the space; add the box to its top-left corner
+            // |-------|-------|
+            // |  box  |       |
+            // |_______|       |
+            // |         space |
+            // |_______________|
+            box.x = space.x;
+            box.y = space.y;
+
+            height = Math.max(height, box.y + box.h);
+            width = Math.max(width, box.x + box.w);
+
+            if (box.w === space.w && box.h === space.h) {
+                // space matches the box exactly; remove it
+                const last = spaces.pop();
+                if (i < spaces.length) spaces[i] = last;
+
+            } else if (box.h === space.h) {
+                // space matches the box height; update it accordingly
+                // |-------|---------------|
+                // |  box  | updated space |
+                // |_______|_______________|
+                space.x += box.w;
+                space.w -= box.w;
+
+            } else if (box.w === space.w) {
+                // space matches the box width; update it accordingly
+                // |---------------|
+                // |      box      |
+                // |_______________|
+                // | updated space |
+                // |_______________|
+                space.y += box.h;
+                space.h -= box.h;
+
+            } else {
+                // otherwise the box splits the space into two spaces
+                // |-------|-----------|
+                // |  box  | new space |
+                // |_______|___________|
+                // | updated space     |
+                // |___________________|
+                spaces.push({
+                    x: space.x + box.w,
+                    y: space.y,
+                    w: space.w - box.w,
+                    h: box.h
+                });
+                space.y += box.h;
+                space.h -= box.h;
+            }
+            break;
+        }
+    }
+
+    return {
+        w: width, // container width
+        h: height, // container height
+        fill: (area / (width * height)) || 0 // space utilization
+    };
+}
+</script>
+<script>
+class OmniWindow extends HTMLElement {
+	static #ListFor = null;
+	static #Order = null;
+	static isClone = null;
+	constructor() {
+		super();
+		var	x1, y1;	// Координаты курсора относительно перемещаемого окна
+		this.root = this.attachShadow({mode: "open"});
+		this.wrapper = document.createElement("slot");
+		// Создаём элемент заголовка окна (CAPTION)
+		this.header = document.createElement("header");
+		this.header.className = "omni-window-header";
+		this.root.appendChild(this.header);
+		this.root.appendChild(this.wrapper);
+		this.root.append(
+			document.getElementById('tmpl').content.cloneNode(true));
+		if(OmniWindow.isClone) {
+			return;
+		}
+		this.header.addEventListener("pointerdown",
+			(function(evt) {
+				document.body.setPointerCapture(evt.pointerId);
+				document.body.onpointermove = onMouseMove.bind(this);
+				x1 = evt.clientX - this.offsetLeft;
+				y1 = evt.clientY - this.offsetTop;
+				evt.preventDefault();
+			}).bind(this)
+		);
+		// Добавляем обработчик события отпускания заголовка окна
+		document.body.addEventListener("pointerup",
+			(function(evt) {
+				document.body.onpointermove = null;
+				document.body.releasePointerCapture(evt.pointerId);
+			}).bind(this)
+		);
+		setTimeout((function() {
+			this.style.left = `${this.offsetLeft}px`;
+			this.style.top = `${this.offsetTop}px`;
+		}).bind(this), 0);
+		this.addEventListener("pointerdown", this.bringToTop);
+		if(OmniWindow.Order)
+			OmniWindow.Order.push(this);
+		else
+			OmniWindow.Order = [this];
+		function onMouseMove(evt) {
+			const	x = evt.clientX - x1;
+			const	y = evt.clientY - y1;
+			this.style.left = `${x}px`;
+			this.style.top = `${y}px`;
+			evt.preventDefault();
+		}
+	}
+	adoptedCallback() {
+		alert(this);
+	}
+	connectedCallback() {
+		this.className = "OmniWindow";
+		this.enumerate();
+	}
+	disconnectedCallback() {
+		for(const i in OmniWindow.Order) {
+			if(OmniWindow.Order[i] == this) {
+				OmniWindow.Order.splice(i, 1);
+				return;
+			}
+		}
+	}
+	static get observedAttributes() {
+		return "for title".split(/\s+/);
+	}
+	attributeChangedCallback(name, oldValue, newValue) {
+		// вызывается при изменении одного из перечисленных выше атрибутов
+		switch(name) {
+		case "for":
+			// Если имеется ссылка на элемент стека окон, регистрируем
+			if(OmniWindow.isClone)
+				return;
+			OmniWindow.ListFor = newValue;
+			this.enumerate();
+			break;
+		case "title":
+			this.header.textContent = this.title;
+			break;
+		}
+	}
+	getStyle(styleProp) {
+		if(window.getComputedStyle)
+			return document.defaultView.getComputedStyle(this, null).getPropertyValue(styleProp);
+		else
+		if(this.currentStyle)
+			return this.currentStyle[styleProp];
+	}
+	getZIndex(el) {
+		if(!el.style)
+			return 0;
+		var z = document.defaultView.getComputedStyle(el, null).getPropertyValue("z-index");
+		if(isNaN(z) && el.parentNode)
+			return this.getZIndex(el.parentNode);
+		return z;
+	}
+	bringToTop() {
+		if(!this.hasAttribute("active")) {
+			var j;
+			for(var i = 0; i < OmniWindow.Order.length; ++ i) {
+				if(this == OmniWindow.Order[i])
+					j = i;
+			}
+			if(isNaN(j))
+				return;
+			OmniWindow.Order.push(OmniWindow.Order.splice(j, 1)[0]);
+			j = 100 - OmniWindow.Order.length;
+			for(var el of OmniWindow.Order) {
+				el.style.zIndex = ++ j;
+				el.removeAttribute("active");
+			}
+			this.setAttribute("active", null);
+			this.enumerate();
+		}
+	}
+	enumerate() {
+		if(OmniWindow.ListFor) {
+			var	hList = document.getElementById(OmniWindow.ListFor);
+			if(hList) {
+				hList.length = 0;
+				for(const el of OmniWindow.Order) {
+					const hOption = document.createElement("option");
+					hOption.textContent = el.title;
+					hOption.value = el.title;
+					hList.appendChild(hOption);
+				}
+				hList.size = hList.length;
+			}
+		}
+	}
+	arrange() {
+		var	boxes = [];
+		//
+		for(const el of [...OmniWindow.Order]) {
+			boxes.push({el: el, w: el.offsetWidth, h: el.offsetHeight});
+		}
+		const	{h, w, fill} = potpack(boxes);
+		for(const box of boxes) {
+			var	el = box.el;
+			el.style.left = `${box.x}px`;
+			el.style.top = `${box.y}px`;
+		}
+	}
+	arranger() {
+		var	hFlag = document.getElementById("DoFloating");
+		var	flag = hFlag.checked;
+		var	hSlot = document.createElement("div");
+		hSlot.style.position = "absolute";
+		hSlot.style.left = "0px";
+		hSlot.style.top = "0px";
+		OmniWindow.isClone = true;
+		for(const el of [...OmniWindow.Order]) {
+			var	hClone = el.cloneNode();
+			hClone.innerHTML = el.innerHTML;
+			for(const chld of hClone.children)
+				chld.id = "";//`${el.id}__clone`;
+			hSlot.appendChild(hClone);
+		}
+		hFlag.checked = false;
+		document.body.appendChild(hSlot);
+		OmniWindow.isClone = false;
+		var i = 0;
+		for(const el of hSlot.getElementsByTagName("omni-window")) {
+			var box = el.getBoundingClientRect();
+			var org = OmniWindow.Order[i ++];
+			org.style.left = `${box.x}px`;
+			org.style.top = `${box.y}px`;
+		}
+		hSlot.remove();
+		hFlag.checked = flag;
+	}
+}
+
+customElements.define("omni-window", OmniWindow);
+</script>
 
 <style>
   user-card {
@@ -211,6 +475,9 @@ video {
 <label for=DoFloating>Change Mode</label><button onclick='this.parentElement.arrange()'>Arrange</button>
 <select id=FloatList></select>
 </omni-window>
+<omni-window title='Window "Div"'><div>Div-Tag</div></omni-window>
+<omni-window title='Window "Pre"'><pre>Pre-Tag</pre></omni-window>
+<omni-window title='Window "TextArea"'><textarea>TextArea-Tag</textarea></omni-window>
 <omni-window title='Window "YouTube"' drown>
 <iframe id=YouTube title='YouTube' width="560" height="315" src='https://www.youtube.com/embed/HiQrUDIah4E' title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; full-screen;" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 </omni-window>
@@ -224,10 +491,8 @@ video {
 </select>
 </form>
 </omni-window>
-<omni-window id=Files title='Files'>
-<a href='fantaseur-proto.html'><img src='https://img.icons8.com/?size=100&id=K13CnWBxvKsl&format=png&color=000000' /></a>
+<omni-window title='Assembler'>
+<iframe id=YouTube title='Assembler' width="800" height="600" src='assembler.html' frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; full-screen;" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 </omni-window>
-<omni-window id=Preview title='Preview'>
-<img id=Previewer src='' />
-</omni-window>
+<a style='position:absolute; right:0px; bottom:0px;' href='fantaseur-proto.html'><img src='https://img.icons8.com/?size=100&id=K13CnWBxvKsl&format=png&color=000000' /></a>
 </body>
