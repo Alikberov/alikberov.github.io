@@ -1,0 +1,990 @@
+<html>
+<head>
+<title>Assembler</title>
+
+<script>
+const	Cache = window.localStorage;
+
+var	hTimer;
+
+class X80_ASM {
+	constructor() {
+		this.ram = new Uint8Array(65536);
+		this.dis_lines_points = [];
+		this.dis_points_lines = [];
+		this.sleep = 1;
+	}
+	write(address, data) {
+		this.ram[address ++] = Number(data[0]) & 0xFF;
+		if(data.length > 0)
+			this.ram[address ++] = Number(data[1]) & 0xFF;
+		if(data.length > 1)
+			this.ram[address ++] = Number(data[2]) & 0xFF;
+	}
+	translate(text, head) {
+		var	_this = this;
+		var	x86 = false;
+		var	dump;
+		var	dump_length;
+		var	tmp;
+		var	rows = text.split(/\r?\n/);
+		var	i;
+		var	ri, ti;
+		var	part, text;
+		var	curLabel = "";
+		var	address = 0x0000;
+		var	command, code;
+		var	instruction;
+		var	codes, ascii;
+		var	rcv = "X", trs = "X";
+		var	regs = {A:0xA0, B:0xB0, C:0xC0, D:0xD0};
+		var	alu = {ADD:10, ADC:10, SUB:11, SBB:11, AND:12, CON:12, OR:13, DIS:13, XOR:14, EOR:14, MOV:15, FOR:15};
+		var	defs = {};
+		var	labels = [];
+		var	label;
+		var	labelat;
+		var	review = 0;
+		var	usr;
+		var	vector, offset;
+		var	rcv8, rcv16, trs8, args;
+		var	command8, command16;
+		var	ticks;
+		do {
+			dump = [];
+			label = [];
+			labelat = [];
+			ticks = 0;
+			for(i = 0; i < rows.length; ++ i) {
+				codes = "";
+				this.dis_lines_points[i + head] = address;
+				this.dis_points_lines[address] = i + head;
+				part = /(:?[^:;"'`\s]*(?::| ?))?(?:\s)*([^\s;]*)(?:\s*)([^\s,;"'`]*)(?:[,\s]*)?([^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/.exec(rows[i]);
+				part[3] = part[3].replace(/\$/, String(address));
+				part[4] = part[4].replace(/\$/, String(address));
+				if(part[1]) {
+					switch(part[2].toUpperCase()) {
+					case ".DEF":
+						defs[part[1].toUpperCase()] = { bytes: 0, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					case ".DEFB":
+						defs[part[1].toUpperCase()] = { bytes: 1, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					case ".DEFW":
+						defs[part[1].toUpperCase()] = { bytes: 2, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					default:
+						if(part[1].charAt(0).match(/[:@]/)) {
+							part[1] = part[1].replace(/[ :]$/, "").replace(/@/, "");
+							tmp = part[1].match(/(\.*)(.*)/);
+							labelat = label.slice(0, tmp[1].length).concat(tmp[2].split("."));
+							part[1] = labelat.join(".");
+							if(labels[part[1]] != address)
+								delete labels[labels[part[1].toUpperCase()]];
+							labels[address] = part[1];
+							labels[part[1].toUpperCase()] = address;
+						} else {
+							part[1] = part[1].replace(/[ :]$/, "");
+							tmp = part[1].match(/(\.*)(.*)/);
+							label = label.slice(0, tmp[1].length).concat(tmp[2].split("."));
+							part[1] = label.join(".");
+							if(labels[part[1]] != address)
+								delete labels[labels[part[1].toUpperCase()]];
+							labels[address] = part[1];
+							labels[part[1].toUpperCase()] = address;
+						}
+						break;
+					}
+				}
+				if(part[2].toUpperCase() == ".DEF") {
+					rcv = "X", trs = "X";
+					regs.A = 0xFA;
+					regs.B = 0xFB;
+					regs.C = 0xFC;
+					regs.D = 0xFD;
+					if(part[3].toUpperCase() in defs)
+						address = defs[part[3].toUpperCase()].code << 8;
+					this.dis_lines_points[i + head] = address;
+					this.dis_points_lines[address] = i + head;
+				} else
+				if(part[2].charAt(0) == ".") {
+					switch(part[2].toUpperCase()) {
+					case ".MODEL":
+						x86 = !!part[3].match(/x86/i);
+						break;
+					case ".SLEEP":
+						this.sleep = parseInt(part[3]);
+						break;
+					case ".RUN":
+						this.run = parseInt(part[3]);
+						break;
+					case ".ORG":
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						if(part[3].toUpperCase() in defs)
+							address = defs[part[3].toUpperCase()].code << 8;
+						else
+							address = parseInt(part[3]);
+						this.dis_lines_points[i + head] = address;
+						this.dis_points_lines[address] = i + head;
+						codes = "-";
+						break;
+					case ".EQU":
+						labels[part[1].toUpperCase()] = parseInt(part[3]);
+						this.dis_lines_points[i + head] = parseInt(part[3]);
+						break;
+					case ".DS":
+						address += parseInt(part[3]);
+						break;
+					case ".DB":
+						if(part[5] && (part[5].charAt(0) == '"')) {
+							this.dis_lines_points[i + head] = address;
+							part[5].substr(1, part[5].length - 2)
+							.replace(/\\0/g, "\0")
+							.replace(/\\n/g, "\n")
+							.replace(/\\r/g, "\r")
+							.replace(/\\t/g, "\t")
+							.split("")
+							.forEach
+							(function(ascii) {
+								_this.dis_lines_tables[address] = true;
+								_this.dis_points_lines[address] = i + head;
+								_this.ram[address ++] = ascii.charCodeAt(0);
+								return 0;
+							});
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3]);
+						}
+						break;
+					case ".DW":
+						code = parseInt(part[3]);
+						this.dis_lines_points[i + head] = address;
+						this.dis_points_lines[address] = i + head;
+						this.dis_lines_tables[address] = true;
+						this.ram[address ++] = code.low;
+						this.dis_points_lines[address] = i + head;
+						this.dis_lines_tables[address] = true;
+						this.ram[address ++] = code.high;
+						break;
+					case ".CLR":
+						rcv = "X", trs = "X";
+						break;
+					case ".DEF":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 0, code: parseInt(part[4])};
+						break;
+					case ".DEFB":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 1, code: parseInt(part[4])};
+						break;
+					case ".DEFW":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 2, code: parseInt(part[4])};
+						break;
+					case ".IMGUR":
+						hSprites.src = "https://i.imgur.com/" + part[3];
+						break;
+					}
+				}
+				part[3] = part[3].replace(/(\.*)([A-Z_a-z][A-Z_a-z.0-9]*)/g, function(str, nest, tag) {
+					var	tmp;
+					if(label && labels.length) {
+						tmp = labels[label.slice(0, nest.length).concat(tag.split(".")).join(".").toUpperCase()];
+						if(isFinite(tmp))
+							return Number(tmp);
+						return	nest + tag;
+					}
+					return str;
+				});
+				part[4] = part[4].replace(/(\.*)([A-Z_a-z][A-Z_a-z.0-9]*)/g, function(str, nest, tag) {
+					var	tmp;
+					if(label && labels.length) {
+						tmp = labels[label.slice(0, nest.length).concat(tag.split(".")).join(".").toUpperCase()];
+						if(isFinite(tmp))
+							return Number(tmp);
+						return	nest + tag;
+					}
+					return str;
+				});
+				try {
+					part[3] = part[3].match(/\[.+\]/) ? "[" + eval(part[3].replace(/\[|\]/g, "")) + "]" : eval(part[3]);
+				} catch(e) {}
+				try {
+					part[4] = part[4].match(/\[.+\]/) ? "[" + eval(part[4].replace(/\[|\]/g, "")) + "]" : eval(part[4]);
+				} catch(e) {}
+				command = (part[2] + " " + part[3] + (part[4] ? "," + part[4] : "")).toUpperCase();
+				if(part[2].toUpperCase() in defs) {
+					usr = defs[part[2].toUpperCase()];
+					switch(usr.bytes) {
+					case 0:
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = usr.code;
+						break;
+					case 1:
+						if(part[3].match(/[ABC]\d/i)) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3], 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_lines_tables[address] = true;
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[4]);
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]);
+						}
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						break;
+					case 2:
+						if(part[3].match(/BC\d/i)) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3].charAt(0) + part[3].charAt(2), 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3].substr(1), 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[4]).low;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[4]).high;
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]).low;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]).high;
+						}
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						break;
+					}
+				}
+/**/
+function assm_x80(text) {
+	const	encodes = {
+		"ACI":	"1",
+		"ADC":	"1",
+		"ADD":	"0",
+		"ADI":	"0",
+		"ANA":	"4",
+		"ANI":	"4",
+		"CMP":	"7",
+		"CPI":	"7",
+		"ORA":	"6",
+		"ORI":	"6",
+		"SBB":	"3",
+		"SBI":	"3",
+		"SUB":	"2",
+		"SUI":	"2",
+		"XRA":	"5",
+		"XRI":	"5",
+		"RLC":	"0",
+		"RRC":	"1",
+		"RAL":	"2",
+		"RAR":	"3",
+		"DAA":	"4",
+		"CMA":	"5",
+		"STC":	"6",
+		"CMC":	"7",
+		"CNZ":	"0",
+		"CZ":	"1",
+		"CNC":	"2",
+		"CC":	"3",
+		"CPO":	"4",
+		"CPE":	"5",
+		"CP":	"6",
+		"CM":	"7",
+		"JNZ":	"0",
+		"JZ":	"1",
+		"JNC":	"2",
+		"JC":	"3",
+		"JPO":	"4",
+		"JPE":	"5",
+		"JP":	"6",
+		"JM":	"7",
+		"RNZ":	"0",
+		"RZ":	"1",
+		"RNC":	"2",
+		"RC":	"3",
+		"RPO":	"4",
+		"RPE":	"5",
+		"RP":	"6",
+		"RM":	"7"
+	};
+	const	registers = {
+		"A":	"7",
+		"B":	"0",
+		"BC":	"0",
+		"C":	"1",
+		"D":	"2",
+		"DE":	"1",
+		"E":	"3",
+		"H":	"4",
+		"HL":	"2",
+		"L":	"5",
+		"M":	"6",
+		"SP":	"3",
+		"PSW":	"3",
+		"AF":	"3"
+	};
+	var	fields;			// Assembly fields
+	var	label;
+	var	command;
+	var	prefixes = "";
+	var	arg = [];
+	var	inf = [];
+	var	instruction;
+	var	bytes = [];
+	var	codes = "";
+	var	encode = "-";
+	var	_ = [];
+	var	i;
+	//
+	fields = /([^:;"'`\s]*(?::))?(?:\s)*([^\s;]*)(?:\s*)([^\s,;"'`]*)(?:[,\s]*)?([^\s,;"'`]*)?(?:[,\s]*)?([^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/.exec(text);
+	label = fields[1];
+	command = fields[2];
+	instruction = command
+		.replace(/^(ADD|ADC|SUB|SBB|ANA|XRA|ORA|CMP)$/i, "ALU")
+		.replace(/^(ADI|ACI|SUI|SBI|ANI|XRI|ORI|CPI)$/i, "ALI")
+		.replace(/^(RLC|RRC|RAL|RAR|DAA|CMA|STC|CMA)$/i, "REG")
+		.replace(/^([CJR](NZ|Z|NC|C|PO|PE|P|M))$/i, command.charAt(0).toUpperCase() + "!");
+	if(command.toUpperCase() in encodes)
+		encode = encodes[command.toUpperCase()];
+	for(i = 3; i < 5 && i < fields.length; ++ i) {
+		if(fields[i] && fields[i] != "") {
+			if(fields[i].match(/\[.+\]/))
+				_.push("@"),
+				arg.push(parseInt(fields[i].substr(1, fields[i].length - 2)));
+			else
+			if(fields[i].toUpperCase() in registers)
+				_.push(fields[i].replace(/^(BC|DE)$/i, "P").replace(/^HL$/i, "Q").replace(/^(SP)$/i, "S").replace(/^(PSW|AF)$/i, "W").replace(/^([ABCDEHLM])$/i, "R")),
+				arg.push(registers[fields[i].toUpperCase()]);
+			else
+				_.push("%"),
+				arg.push(parseInt(fields[i]));
+		} else
+			arg.push("");
+	}
+	inf.push(0);
+	_ = instruction + (_.length > 0 ? " " + _.join() : "");
+	_ = _.search.bind(_);
+	switch(0) {
+	case _(/NOP$/i):				codes = "000"; break;
+	case _(/(LXI|MOV) [PQS],[%@]$/i):		codes = "0P1 yy YY"; break;
+	case _(/STAX P$/i):				codes = "0P2"; break;
+	case _(/(INX|INC) [PQS]$/i):			codes = "0P3"; break;
+	case _(/(INR|INC) R$/i):			codes = "0R4"; break;
+	case _(/(DCR|DEC) R$/i):			codes = "0R5"; break;
+	case _(/(MVI|MOV) R,%$/i):			codes = "0R6 yy"; break;
+//	case _(/REG$/i):				codes = "0_7"; break;
+	case _(/DAD [PQS]$/i):				codes = "0p1"; break;
+	case _(/LDAX [PQS]$/i):				codes = "0p2"; break;
+	case _(/(DCX|DEC) [PQS]$/i):			codes = "0p3"; break;
+	case _(/SHLD [%@]$/i):				codes = "042 xx XX"; break;
+	case _(/LHLD [%@]$/i):				codes = "052 xx XX"; break;
+	case _(/STA [%@]$/i):				codes = "062 xx XX"; break;
+	case _(/LDA [%@]$/i):				codes = "072 xx XX"; break;
+	case _(/HLT$/i):				codes = "166"; break;
+	case _(/MOV R,R$/i):				codes = "1Rr"; break;
+	case _(/REG$/i):				codes = "0_7"; break;
+	case _(/ALU R$/i):				codes = "2_R"; break;
+	case _(/R!$/i):					codes = "3_0"; break;
+	case _(/POP [PQW]$/i):				codes = "3P1"; break;
+	case _(/J! [%@]$/i):				codes = "3_2 xx XX"; break;
+	case _(/JMP [%@]$/i):				codes = "303 xx XX"; break;
+	case _(/C! [%@]$/i):				codes = "3_4 xx XX"; break;
+	case _(/PUSH [PQW]$/i):				codes = "3P5"; break;
+	case _(/ALI [%@]$/i):				codes = "3_6 xx"; break;
+	case _(/RST %$/i):				codes = "3x7"; break;
+	case _(/RET/i):				codes = "311"; break;
+	case _(/CALL [%@]$/i):				codes = "315 xx XX"; break;
+	case _(/OUT [%@]$/i):				codes = "323 xx"; break;
+	case _(/IN [%@]$/i):				codes = "333 xx"; break;
+	case _(/PCHL|JMP Q/i):				codes = "341"; break;
+	case _(/XTHL$/i):				codes = "343"; break;
+	case _(/XCHG$/i):				codes = "353"; break;
+	case _(/DI|CLI$/i):				codes = "363"; break;
+	case _(/SPHL|MOV S,Q$/i):			codes = "371"; break;
+	case _(/EI|STI$/i):				codes = "373"; break;
+	default:					return "";
+	}
+
+	codes = codes
+		.replace(/P/g, arg[0] * 2)
+		.replace(/p/g, arg[0] * 2 + 1)
+		.replace(/R/g, arg[0])
+		.replace(/r/g, arg[1])
+		.replace(/L/g, arg[1])
+		.replace(/XX/g, ("0" + ((arg[0] >> 8) & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/xx/g, ("0" + (arg[0] & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/x/g, (arg[0] & 7).toString())
+		.replace(/YY/g, ("0" + ((arg[1] >> 8) & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/yy/g, ("0" + (arg[1] & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/_/g, encode);
+	return ("0" + parseInt(codes.substr(0, 3), 8).toString(16).toUpperCase()).substr(-2) + codes.substr(3);
+}
+/**/
+function assm_x86(text) {
+	const	encodes = {
+		"ADC":	"1",
+		"ADD":	"0",
+		"AND":	"4",
+		"CMP":	"7",
+		"OR":	"6",
+		"SBB":	"3",
+		"SUB":	"2",
+		"XOR":	"5",
+		"RLC":	"0",
+		"RRC":	"1",
+		"RAL":	"2",
+		"RAR":	"3",
+		"DAA":	"4",
+		"CMA":	"5",
+		"STC":	"6",
+		"CMC":	"7",
+		"CNZ":	"0",
+		"CZ":	"1",
+		"CNC":	"2",
+		"CC":	"3",
+		"CPO":	"4",
+		"CPE":	"5",
+		"CP":	"6",
+		"CM":	"7",
+		"JNZ":	"0",
+		"JZ":	"1",
+		"JNC":	"2",
+		"JC":	"3",
+		"JPO":	"4",
+		"JPE":	"5",
+		"JP":	"6",
+		"JM":	"7",
+		"RNZ":	"0",
+		"RZ":	"1",
+		"RNC":	"2",
+		"RC":	"3",
+		"RPO":	"4",
+		"RPE":	"5",
+		"RP":	"6",
+		"RM":	"7"
+	};
+	const	registers = {
+		"AL":	"7",
+		"CH":	"0",
+		"CX":	"0",
+		"CL":	"1",
+		"DH":	"2",
+		"DX":	"1",
+		"DL":	"3",
+		"BH":	"4",
+		"BX":	"2",
+		"BL":	"5",
+		"[BX]":	"6",
+		"SP":	"3",
+		"PSW":	"3",
+		"AF":	"3"
+	};
+	var	fields;			// Assembly fields
+	var	label;
+	var	command;
+	var	prefixes = "";
+	var	arg = [];
+	var	inf = [];
+	var	instruction;
+	var	bytes = [];
+	var	codes = "";
+	var	encode = "-";
+	var	_ = [];
+	var	i;
+	//
+	fields = /([^:;"'`\s]*(?::))?(?:\s)*([^\s;]*)(?:\s*)([^\s,;"'`]*)(?:[,\s]*)?([^\s,;"'`]*)?(?:[,\s]*)?([^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/.exec(text);
+	label = fields[1];
+	command = fields[2];
+	instruction = command
+		.replace(/^(ADD|ADC|SUB|SBB|AND|XOR|OR|CMP)$/i, "ALU")
+		.replace(/^(RLC|RRC|RAL|RAR|DAA|CMA|STC|CMA)$/i, "REG")
+		.replace(/^([CJR](NZ|Z|NC|C|PO|PE|P|M))$/i, command.charAt(0).toUpperCase() + "!");
+	if(command.toUpperCase() in encodes)
+		encode = encodes[command.toUpperCase()];
+	for(i = 3; i < 5 && i < fields.length; ++ i) {
+		if(fields[i] && fields[i] != "") {
+			if(fields[i].match(/\[BX\]/i))
+				_.push("R"),
+				arg.push(6);
+			else
+			if(fields[i].match(/\[.+\]/))
+				_.push("@"),
+				arg.push(parseInt(fields[i].substr(1, fields[i].length - 2)));
+			else
+			if(fields[i].toUpperCase() in registers)
+				_.push(fields[i].replace(/^(CX|DX)$/i, "P").replace(/^(AL|[BCD][HL]|\[BX\])$/i, "R").replace(/^BX$/i, "Q").replace(/^(SP)$/i, "S").replace(/^(PSW|AF)$/i, "W")),
+				arg.push(registers[fields[i].toUpperCase()]);
+			else
+				_.push("%"),
+				arg.push(parseInt(fields[i]));
+		} else
+			arg.push("");
+	}
+	inf.push(0);
+	_ = instruction + (_.length > 0 ? " " + _.join() : "");
+	_ = _.search.bind(_);
+	switch(0) {
+	case _(/NOP$/i):				codes = "000"; break;
+	case _(/MOV Q,@$/i):				codes = "052 xx XX"; break;
+	case _(/(MOV) [PQS],[%@]$/i):		codes = "0P1 yy YY"; break;
+	case _(/MOV P$,AL/i):				codes = "0P2"; break;
+	case _(/INC [PQS]$/i):			codes = "0P3"; break;
+	case _(/INC R$/i):			codes = "0R4"; break;
+	case _(/DEC R$/i):			codes = "0R5"; break;
+	case _(/MOV [QR],%$/i):			codes = "0R6 yy"; break;
+//	case _(/REG$/i):				codes = "0_7"; break;
+	case _(/ADD BX,[PQS]$/i):				codes = "0p1"; break;
+	case _(/MOV AL,[PQS]$/i):				codes = "0p2"; break;
+	case _(/DEC [PQS]$/i):			codes = "0p3"; break;
+	case _(/MOV @,Q$/i):				codes = "042 xx XX"; break;
+	case _(/STA @$/i):				codes = "062 xx XX"; break;
+	case _(/LDA @$/i):				codes = "072 xx XX"; break;
+	case _(/HLT$/i):				codes = "166"; break;
+	case _(/MOV [QR],R$/i):				codes = "1Rr"; break;
+	case _(/REG$/i):				codes = "0_7"; break;
+	case _(/ALU AL,[QR]$/i):				codes = "2_R"; break;
+	case _(/R!$/i):					codes = "3_0"; break;
+	case _(/POP [PQW]$/i):				codes = "3P1"; break;
+	case _(/J! [%@]$/i):				codes = "3_2 xx XX"; break;
+	case _(/JMP [%@]$/i):				codes = "303 xx XX"; break;
+	case _(/C! [%@]$/i):				codes = "3_4 xx XX"; break;
+	case _(/PUSH [PQW]$/i):				codes = "3P5"; break;
+	case _(/ALU AL,[%@]$/i):				codes = "3_6 xx"; break;
+	case _(/RST %$/i):				codes = "3x7"; break;
+	case _(/RET/i):				codes = "311"; break;
+	case _(/CALL [%@]$/i):				codes = "315 xx XX"; break;
+	case _(/OUT [%@]$/i):				codes = "323 xx"; break;
+	case _(/IN [%@]$/i):				codes = "333 xx"; break;
+	case _(/PCHL|JMP Q/i):				codes = "341"; break;
+	case _(/XTHL$/i):				codes = "343"; break;
+	case _(/XCHG$/i):				codes = "353"; break;
+	case _(/DI|CLI$/i):				codes = "363"; break;
+	case _(/SPHL|MOV S,Q$/i):			codes = "371"; break;
+	case _(/EI|STI$/i):				codes = "373"; break;
+	default:					return "";
+	}
+
+	codes = codes
+		.replace(/P/g, arg[0] * 2)
+		.replace(/p/g, arg[0] * 2 + 1)
+		.replace(/R/g, arg[0])
+		.replace(/r/g, arg[1])
+		.replace(/L/g, arg[1])
+		.replace(/XX/g, ("0" + ((arg[0] >> 8) & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/xx/g, ("0" + (arg[0] & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/x/g, (arg[0] & 7).toString())
+		.replace(/YY/g, ("0" + ((arg[1] >> 8) & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/yy/g, ("0" + (arg[1] & 0xFF).toString(16).toUpperCase()).substr(-2))
+		.replace(/_/g, encode);
+	return ("0" + parseInt(codes.substr(0, 3), 8).toString(16).toUpperCase()).substr(-2) + codes.substr(3);
+}
+/**/
+				if(part[2].match(/PUSH/) && part[5]) {
+					tmp = address + part[5].length;
+					this.dis_lines_points[i + head] = address;
+					var	text = [];
+					part[5].substr(1, part[5].length - 2)
+					.replace(/\\0/g, "\0")
+					.replace(/\\n/g, "\n")
+					.replace(/\\r/g, "\r")
+					.replace(/\\t/g, "\t")
+					.split("")
+					.forEach
+					(function(ascii) {
+						text.push(ascii.charCodeAt(0).toString(16).padStart(2, "0"));
+						//_this.dis_lines_tables[address] = true;
+						//_this.dis_points_lines[address] = i + head;
+						//_this.ram[address ++] = ascii.charCodeAt(0);
+
+						return 0;
+					});
+					codes = `CD ${(tmp & 255).toString(16).padStart(2, "0").toUpperCase()} ${((tmp >> 8) & 255).toString(16).padStart(2, "0").toUpperCase()} ${text.join(" ")}`;
+					dump.push(`${address.toString(16).toUpperCase().padStart(4, "0")} ${codes}`);
+				} else
+				if(codes == "") {
+					if(x86)
+						codes = assm_x86(command);
+					else
+						codes = assm_x80(command);
+				}
+				if(codes.length > 0) {
+					console.log(`${address.toString(16).padStart(4, "0")} ${codes} | ${command}`);
+				}
+				switch(codes.split(" ").length) {
+				case 0:
+					address += dump.split(/\s+/).length - 1;
+					break;
+				case 1:
+					if(codes.length > 1) {
+						dump.push(`${address.toString(16).toUpperCase().padStart(4, "0")} ${codes}`);
+						address += 1;
+					} else
+					if(codes.length > 0) {
+						dump.push(`${address.toString(16).toUpperCase().padStart(4, "0")}`);
+					} else
+						dump.push(``);
+					break;
+				case 2:
+					dump.push(`${address.toString(16).toUpperCase().padStart(4, "0")} ${codes}`);
+					address += 2;
+					break;
+				case 3:
+					dump.push(`${address.toString(16).toUpperCase().padStart(4, "0")} ${codes}`);
+					address += 3;
+					break;
+				default:
+					address += codes.split(" ").length;
+					break;
+				}
+			}
+		} while(review ++ < 2);
+		return dump.join("\r\n");
+	}
+}
+</script>
+
+<script>
+const Asm = new X80_ASM();
+
+function main() {
+	const hInstructions = document.querySelector("TextArea#Instructions");
+	const hText = document.querySelector("TextArea#Listing");
+	const CPU_Cmd_Ptrn = /^(?<mask>[01_X]+)`(?<type>\w)\s*(?<name>\S+)\s*(?<operands>[^`]*?)\s*`(?<acts>[^`]*)\s*`(?<remark>.+)/i;
+	//
+	if("Listing" in Cache) {
+		if(Cache.Listing != "") {
+			hText.value = Cache.Listing;
+			if("Listing_select_start" in Cache)
+				hText.selectStart = Number(Cache.Listing_select_start);
+			if("Listing_select_end" in Cache)
+				hText.selectEnd = Number(Cache.Listing_select_end);
+			if("Listing_scroll_top" in Cache)
+				hText.scrollTop = Number(Cache.Listing_scroll_top);
+		}
+	}
+	//
+	if(false)
+	for(const therm of hInstructions.value.split(/\r?\n/)) {
+		const	precept = therm.split(/[\s\t]+/);
+		const	details = CPU_Cmd_Ptrn.exec(therm)?.groups;
+		const	tmp = details.mask.replace(/_/g, "");
+		var
+			base = parseInt(tmp.replace(/X/g, "0"), 2),	// 0XX1X0X1XX -> 0001000100
+			over = parseInt(tmp.replace(/X/g, "1"), 2),	// 0XX1X0X1XX -> 0111101111
+			last = parseInt(tmp.replace(/./g, "1"), 2),	// 0XX1X0X1XX -> 1111111111
+			mix = base ^ over ^ last;			//               1001010100
+		console.log(`${therm}`);
+		const	operands = details.operands.split(",");
+		var	receiver = operands[0].split("|");
+		// Running for whole combinates of undefined bits / Пробегаем по всем комбинациям неопределённых битов
+		for(var i = base; i <= over; i = (((i | mix) + 1) & ~mix) | base) {
+			const	$D = (i & -256) | i;
+			if(operands.length == 2)
+				console.log(`${$D.toString(2).padStart(8, "0")} ${details.name} ${receiver[0]},${operands[1]}`);
+			if(receiver.length > 1)
+				receiver.shift();
+		}
+	}
+	//
+	hText.addEventListener("keydown",
+		function(e) {
+			var keyCode = e.keyCode || e.which;
+			clearTimeout(hTimer);
+			if(keyCode === 0x09) {
+				document.execCommand('insertText', false, '\t'.repeat(1));
+				e.preventDefault();
+			} else
+				hTimer = setTimeout(Translate, Asm.sleep * 1000);
+			Status();
+		}
+	);
+	hText.addEventListener("scroll",
+		function(e) {
+			const hText = document.querySelector("TextArea#Listing");
+			const hCode = document.querySelector("TextArea#Codes");
+			hCode.scrollTop = hText.scrollTop;
+		}
+	);
+	Translate();
+}
+function Translate() {
+	const hText = document.querySelector("TextArea#Listing");
+	const hCode = document.querySelector("TextArea#Codes");
+	const Code = Asm.translate(hText.value, 0);
+	Cache.Listing = hText.value;
+	Cache.Listing_select_start = hText.selectStart;
+	Cache.Listing_select_end = hText.selectEnd;
+	Cache.Listing_scroll_top = hText.scrollTop;
+	hCode.value = Code;
+	hCode.scrollTop = hText.scrollTop;
+	document.querySelector("Marquee").textContent = `run 0x${Asm.run.toString(16).padStart(4, "0").toUpperCase()}`;
+	document.querySelector("Marquee").loop = 1;
+	document.querySelector("Marquee").start();
+}
+function Status() {
+	const hText = document.querySelector("TextArea#Listing");
+	const hStatus = hText = document.querySelector("pre#Status");
+	
+}
+</script>
+
+<style>
+textarea#Codes {
+	color		:grey;
+}
+textarea#Listing {
+	padding-left	:8em;
+	position	:absolute;
+	background	:transparent;
+	color		:black;
+}
+marquee {
+	position	:absolute;
+}
+</style>
+</head>
+
+<body>
+<marquee id=Console loop=1></marquee>
+<pre id=Status></pre>
+<textarea id=Listing rows=35 cols=80 spellcheck=false>
+	.ORG	0x7600
+BIOS:
+.AREA:		EQU	$
+.CONADR:	.DS	2	; 7600
+.CONPOS:	.EQU	$	; 7602
+.CONHOR:	.DS	1
+.CONVER:	.DS	1
+.CONESC:	.DS	1	; 7604
+.LASTKEY:	.DS	1	; 7605
+.RUSLAT:	.DS	1	; 7606
+.RSRV1:		.DS	2	; 7607
+.SCANKEY:	.DS	2	; 7609
+.SCANFLAG:	.DS	1	; 760B
+.RSRV2:		.DS	1	; 760C
+.TEMPSP:	.DS	2	; 760D
+.RSRV3:		.DS	1	; 760F
+.RSRV4:		.DS	16+6	;
+.JUMP:		.DS	1	; 7626
+.PARAMETERS:
+..HL:		.DS	2	; 7627
+..DE:		.DS	2	; 7629
+..BC:		.DS	2	; 762B
+..SECOND:	.DS	1	; 762D
+.TAPE:
+..PHASE:	.DS	1	; 762E
+..SPEED:	.DS	2	; 762F
+.MEMTOP:	.DS	2	; 7631
+.CONBUF:	.DS	30	; 7633
+.AREA.END:	.EQU	0x765F
+.STACK:		.EQU	0x76CF
+.PUTEXT:	.EQU	0xF922
+.VIDEO:		.EQU	0xFACE
+
+I8255:
+.MAIN:	.EQU	0x8000
+..PA:	.EQU	0x8000
+..PB:	.EQU	0x8001
+..PC:	.EQU	0x8002
+..MODE:	.EQU	0x8003
+.SLAVE:	.EQU	0xA000
+..PA:	.EQU	0xA000
+..PB:	.EQU	0xA001
+..PC:	.EQU	0xA002
+..MODE:	.EQU	0xA003
+I8275:	.EQU	0xC000
+.DATA:	.EQU	0xC000
+.MODE:	.EQU	0xC001
+I8257:	.EQU	0xE000
+.ADDR0:	.EQU	0xE000
+.SIZE0:	.EQU	0xE001
+.ADDR1:	.EQU	0xE002
+.SIZE1:	.EQU	0xE003
+.ADDR2:	.EQU	0xE004
+.SIZE2:	.EQU	0xE005
+.ADDR3:	.EQU	0xE006
+.SIZE3:	.EQU	0xE007
+.MODE:	.EQU	0xE008
+..STOP:	.EQU	0x80
+
+MONITOR:.EQU	0xF800
+.VIDEO:	.EQU	0xF82D
+.EXIT:	.EQU	0xF86C
+CONST:
+.BEEP:	.EQU	0x1234
+
+	.SLEEP	1
+	.RUN	0
+
+	.ORG	0xF800
+	.MODEL	I8080
+BIOS:
+.START:	JMP	MONITOR
+.MEMTOP:EQU	0x7631
+.GETKEY:JMP	MONITOR.GETKEY
+.GETAPE:JMP	MONITOR.GETAPE
+.PUTCHR:JMP	MONITOR.PUTCHR
+.PUTAPE:JMP	MONITOR.PUTAPE
+.PUTASC:JMP	MONITOR.PUTASC
+.CHEKEY:JMP	MONITOR.CHEKEY
+.PUTHEX:JMP	MONITOR.PUTHEX
+.PUTEXT:JMP	MONITOR.PUTEXT
+.INKEY:	JMP	MONITOR.INKEY
+.GETCUR:JMP	MONITOR.GETCUR
+.GETSCR:JMP	MONITOR.GETSCR
+.GETBLK:JMP	MONITOR.GETBLK
+.PUTBLK:JMP	MONITOR.PUTBLK
+.CALCRC:JMP	MONITOR.CALCRC
+.SETSCR:JMP	MONITOR.SETSCR
+.GETMEM:LHLD	BIOS.MEMTOP
+.SETMEM:SHLD	BIOS.MEMTOP
+	RET
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+MONITOR:
+.COLD:	MVI	A,0x8A
+	STA	I8255.MAIN.MODE
+	LXI	SP,BIOS.STACK
+	CALL	.VIDEO
+	LXI	HL,BIOS.AREA
+	MOV	D,H
+	MVI	E,BIOS.AREA.END
+	MOV	C,L
+	CALL	.DIRECTIVE.FILL
+	LXI	HL,BIOS.STACK
+	SHLD	BIOS.MEMTOP
+	LXI	HL,.MSG.LOGO
+	CALL	.PUTEXT
+	CALL	.VIDEO
+	LXI	HL,0x75FF
+	SHLD	BIOS.MEMTOP
+	LXI	HL,0x1D2A
+	SHLD	BIOS.TAPE.SPEED
+	MVI	A,0xC3
+	STA	BIOS.JUMP
+.WARM:	LXI	SP,BIOS.STACK
+	LXI	HL,.MSG.PROMPT
+	CALL	.PUTEXT
+	STA	I8255.MAIN.PC
+	DCR	A
+	STA	I8255.SLAVE.PC
+	CALL	.INPUT
+	LXI	HL,.WARM
+	PUSH	HL
+	LXI	HL,BIOS.CONBUF
+	MOV	A,M
+	CPI	0x58
+	JZ	.DIRECTIVE_X
+	CPI	0x55
+	JZ	.DIRECTIVE_U
+
+	.ORG	0xF922
+.PUTEXT:MOV	A,M
+	ORA	A
+	RZ
+	CALL	BIOS.PUTCHAR
+	JMP	.PUTEXT
+
+	PUSH	"TEST\0"
+	POP	HL
+
+	.ORG	0
+START:	MVI	A,I8257.MODE.STOP
+	STA	I8257.MODE
+	LXI	BC,CONST.BEEP
+	CALL	BEEP
+	CALL	.BEEP
+	CALL	MONITOR.VIDEO
+	JMP	MONITOR.EXIT
+
+	.ORG	0xFD27
+@BEEP:	MOV	A,C	; Временная глобальная метка.
+.LOOP:	EI		; Локальная метка.
+	DCR	A
+	JNZ	.LOOP
+	MOV	A,C
+.LOOP:	DI		; Переопределение локальной метки.
+	DCR	A
+	JNZ	.LOOP
+	DCR	B
+	JNZ	BEEP
+.BEEP:	RET		; Локальная метка.
+
+	.MODEL	I8080
+	LXI	HL,0x1234
+	SHLD	0x4321
+	LHLD	0x1234
+	INR	H
+	INR	L
+	INX	HL
+	MOV	M,A
+	MVI	M,0xE6
+	ADC	M
+
+	.MODEL	X86
+	MOV	BX,0x1234
+	MOV	[0x4321],BX
+	MOV	BX,[0x1234]
+	INC	BH
+	INC	BL
+	INC	BX
+	MOV	[BX],AL
+	MOV	[BX],0xE6
+	ADC	AL,[BX]
+</textarea>
+<textarea id=Codes rows=35 cols=93>
+</textarea>
+<textarea id=Instructions rows=2 cols=80>
+00_000_000`C	NOP						```
+00_XX0_001`D	LXI	BC?|DE?|HL?|SP,IW			```
+00_0X0_010`F	STAX	BC?|DE?					```
+00_XXX_100`F	INR|INC	B|C|D|E|H|L|M|A				```
+00_XX0_011`D	INX|INC	BC?|DE?|HL?|SP				```
+00_XX0_101`F	DCR|DEC	B|C|D|E|H|L|M|A				```
+00_XX0_110`F	MVI|MOV	B|C|D|E|H|L|M|A,IB			```
+00_100_010`F	SHLD	IW					```
+00_101_010`F	LHLD	IW					```
+00_110_010`F	STA	IW					```
+00_111_010`F	LDA	IW					```
+01_110_110`C	HLT						```
+01_XXX_YYY`F	MOV	B|C|D|E|H|L|M|A,B|C|D|E|H|L|M|A		```
+10_000_XXX`A	ADD	B|C|D|E|H|L|M|A				```
+10_001_XXX`A	ADC	B|C|D|E|H|L|M|A				```
+10_010_XXX`A	SUB	B|C|D|E|H|L|M|A				```
+10_011_XXX`A	SBB	B|C|D|E|H|L|M|A				```
+10_100_XXX`A	ANA|AND	B|C|D|E|H|L|M|A				```
+10_101_XXX`A	XRA|XOR	B|C|D|E|H|L|M|A				```
+10_110_XXX`A	ORA|OR	B|C|D|E|H|L|M|A				```
+10_111_XXX`A	CMP	B|C|D|E|H|L|M|A				```
+</textarea>
+<script>
+main();
+</script>
+</body>
