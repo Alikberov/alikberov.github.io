@@ -412,7 +412,7 @@ function assm_x80(text) {
 	case _(/MOV R,R$/i):				codes = "1Rr"; break;
 	case _(/REG$/i):				codes = "0_7"; break;
 	case _(/ALU R$/i):				codes = "2_R"; break;
-	case _(/R!$/i):					codes = "3_0"; break;
+	case _(/R!/i):					codes = "3_0"; break;
 	case _(/POP [PQW]$/i):				codes = "3P1"; break;
 	case _(/J! [%@]$/i):				codes = "3_2 xx XX"; break;
 	case _(/JMP [%@]$/i):				codes = "303 xx XX"; break;
