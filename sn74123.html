@@ -14,13 +14,99 @@ function calculate_tick(R, C, is_155) {
 }
 </script>
 
+<script>
+function draw_diagram() {
+	const	cnv = document.querySelector("canvas");
+	const	ctx = cnv.getContext("2d");
+	var	label = "";
+	ctx.fillStyle = "black";
+	ctx.fillRect(0, 0, cnv.width, cnv.height);
+	//
+	ctx.save();
+	ctx.setLineDash([9,1]);
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = cnv.height;
+	ctx.beginPath();
+	ctx.lineWidth = cnv.height;
+	ctx.moveTo(0.5, cnv.height / 2);
+	ctx.lineTo(cnv.width, cnv.height / 2);
+	ctx.globalCompositeOperation = "difference";
+	ctx.lineWidth = cnv.width;
+	ctx.moveTo(cnv.width / 2, 0.5);
+	ctx.lineTo(cnv.width / 2, cnv.height);
+	ctx.stroke();
+	ctx.restore();
+	//
+	ctx.translate(30, 10);
+	ctx.strokeStyle = "black";
+	ctx.beginPath();
+	ctx.rect(0, 0, 600, 600);
+	ctx.stroke();
+	ctx.beginPath();
+	for(let y = 600, power = 1; y >= 0; y -= 200, power += 1) {
+		ctx.font = ctx.font.replace(/\d+/, "16");
+		ctx.textAlign = "right";
+		ctx.textBaseline = "top";
+		ctx.strokeText("10", -12, y - 8);
+		if(power > 1) {
+			ctx.font = ctx.font.replace(/\d+/, "12");
+			ctx.textAlign = "left";
+			ctx.textBaseline = "bottom";
+			ctx.strokeText(String(power), -12, y);
+		}
+	}
+	ctx.stroke();
+	ctx.font = ctx.font.replace(/\d+/, "14");
+	ctx.textBaseline = "top";
+	ctx.fillStyle = "black";
+	label = "Ct, pF";
+	for(let x = 550; x >= 0; x -= 50) {
+		const	exp = Math.floor(x / 199);
+		const	pwr = [1, 10, 100][exp];
+		let i = Math.pow(10, ((x % 199 + 1) / 200 + exp));
+		ctx.fillText(`${String(Math.floor(i / pwr +.225) * pwr)}${label}`, x, 610);
+		ctx.textAlign = "center";
+		label = "";
+	}
+	ctx.font = ctx.font.replace(/\d+/, "24");
+	ctx.textBaseline = "bottom";
+	ctx.beginPath();
+	for(const R of [50, 30, 20, 10, 5]) {
+		for(let x = 0; x < 600; x ++) {
+			const	exp = Math.floor(x / 199);
+			const	pwr = [1, 10, 100][exp];
+			let i = Math.pow(10, ((x % 199 + 1) / 200 + exp));
+			let t = calculate_tick(R * 10000, Math.pow(1.005, i));
+			let y = 600 - Math.log10(t / 10000) * 200;
+			if(x == 0)
+				ctx.moveTo(x, y);
+			else
+				ctx.lineTo(x, y);
+			if(x == 300) {
+				if(label == "")
+					label = `Rt=${R}K\u03A9`;
+				else
+					label = String(R);
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(-10 * Math.PI / 180);
+				ctx.fillText(label, 0, 0);
+				ctx.restore();
+			}
+		}
+	}
+	ctx.stroke();
+}
+</script>
+
 </head>
 
-<body>
+<body onload='draw_diagram()'>
 <form onchange='this.elements.namedItem("T").value = calculate_tick(this.elements.namedItem("R").value, this.elements.namedItem("C").value, this.elements.namedItem("155").checked)'>
 R<input name=R type=number min=1 max=1000000 /><br />
 C<input name=C type=number min=1 max=1000000 /><br />
 T<input name=T type=number disabled /><br />
 155<input name=155 type=checkbox /><br />
-<img src='sn74123_linear.png' />
+<img src='sn74123_linear.png' /><br />
+<canvas width=640 height=640></canvas>
 </form>
