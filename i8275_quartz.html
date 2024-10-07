@@ -1,0 +1,43 @@
+<html>
+<head>
+<title>i8275 Raster Calculator</title>
+
+<script>
+function calculate(els) {
+	const	Pixels = els("Cols").value * els("Dots").value;
+	const	Length = Pixels * (16 / 15);
+	const	Freq = 15625 * Length;
+	els("Clock").value = Freq / 500000;
+	els("HRTC").value = Pixels / 60;
+}
+</script>
+
+</head>
+
+<body>
+<form onchange='calculate(this.elements.namedItem.bind(this.elements))'>
+Logical Characters
+<br />
+<input name=Cols type=number min=1 max=80 value=78 />
+<br />
+<br />
+Dots per Character Scanline
+<br />
+<input name=Dots type=number min=1 max=16 value=6 />
+<br />
+<br />
+Characters in HRTC
+<br />
+<input name=HRTC type=number disabled />
+<br />
+<br />
+Visibled area
+<br />
+<input name=View type=number disabled />
+<br />
+<br />
+Quartz
+<br />
+<input name=Clock type=number disabled />MHz
+</form>
+</body>
