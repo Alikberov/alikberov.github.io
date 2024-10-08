@@ -1,43 +1,97 @@
 <html>
 <head>
-<title>i8275 Raster Calculator</title>
+<title>Raster Calculator</title>
 
 <script>
-function calculate(els) {
-	const	Pixels = els("Cols").value * els("Dots").value;
-	const	Length = Pixels * (16 / 15);
-	const	Freq = 15625 * Length;
-	els("Clock").value = Freq / 500000;
-	els("HRTC").value = Pixels / 60;
+function calculate(_) {
+	const	width = document.body.offsetWidth - 1;
+	const	hRaster = document.getElementById("Raster").style;
+	//
+	const	iQuartz = _("Quartz").value * 1000000;
+	const	nDots = _("Dots").value;
+	//
+	const	hPixels = _("Pixels");
+	const	hBlanking = _("Blanking");
+	const	hColumns = _("Cols");
+	const	hHRTC = _("HRTC");
+	const	hView = _("View");
+	const	hShadow = document.getElementById("Shadow");
+	//
+	const	nCounts = iQuartz / (15625 * nDots);
+	//
+	const	Width = Math.floor(width);
+	const	Border = Math.floor(width / 16);
+	//
+	hPixels.value = iQuartz / 15625;
+	hBlanking.value = iQuartz / 15625 / 16;
+	hColumns.value = nCounts / 2;
+	hHRTC.value = iQuartz / 15625 / 16 / nDots / 2;
+	hView.value = nCounts / 2 - (nCounts / 9);
+	//
+	hShadow.style.borderLeftWidth = `${width / 10}px`;
+	hShadow.style.borderRightWidth = `${width / 8}px`;
+	hShadow.style.width = `$(width - width / 10 - width / 8}px`;
+	hRaster.width = `${width - Border}px`;
+	hRaster.borderRightWidth = `${Border}px`;
+	hRaster.backgroundSize = `${Width / nCounts * 2}px 10px`;
 }
 </script>
 
+<style>
+body {
+	margin		:0 0 0 0;
+}
+
+hr#Raster {
+	background-position: 0px 0px, 5px 5px;
+	background-size	:10px 10px;
+	background-image:linear-gradient(90deg, #eee 1%, transparent 99%, transparent 1%, #eee 1%, #eee 100%);
+	--background-image:linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee 100%)
+			,linear-gradient(45deg, #eee 25%, white 25%, white 75%, #eee 75%, #eee 100%);
+	height	:312px;
+	border-right	:solid thin grey;
+	position	:absolute;
+	margin		:0 0 0 0;
+}
+
+div#Shadow {
+	background-color:white;
+	height		:312px;
+	border-left	:1px solid black;
+	border-right	:1px solid black;
+	opacity		:0.5;
+}
+</style>
 </head>
 
-<body>
+<body style=background-color:green>
 <form onchange='calculate(this.elements.namedItem.bind(this.elements))'>
-Logical Characters
+Quartz
 <br />
-<input name=Cols type=number min=1 max=80 value=78 />
-<br />
-<br />
-Dots per Character Scanline
-<br />
-<input name=Dots type=number min=1 max=16 value=6 />
+<input name=Quartz type=number min=1 max=27 value=16 />MHz
 <br />
 <br />
-Characters in HRTC
+Character width
 <br />
-<input name=HRTC type=number disabled />
+<input name=Dots type=number min=1 max=16 value=6 />Dots
+<hr />
+Raster size
 <br />
+<input name=Pixels type=number disabled />Pixels per row
 <br />
-Visibled area
+<input name=Blanking type=number disabled />Pixels per blanking
 <br />
-<input name=View type=number disabled />
+<input name=Cols type=number disabled />Characters per row
+<br />
+<input name=HRTC type=number disabled />Characters per HRTC
+<br />
+<input name=View type=number disabled />Characters are in visibled
 <br />
 <br />
 Quartz
 <br />
 <input name=Clock type=number disabled />MHz
+<hr id=Raster />
+<div id=Shadow></div>
 </form>
 </body>
