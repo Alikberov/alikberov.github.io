@@ -3,18 +3,19 @@
 <title>Raster Calculator</title>
 
 <script>
-function calculate(_) {
+function calculate() {
+	const	_ = this;
 	const	width = document.body.offsetWidth - 1;
 	const	hRaster = document.getElementById("Raster").style;
 	//
-	const	iQuartz = _("Quartz").value * 1000000;
-	const	nDots = _("Dots").value;
+	const	iQuartz = _("input[name='Quartz']").value * 1000000;
+	const	nDots = _("input[name='Dots']").value;
 	//
-	const	hPixels = _("Pixels");
-	const	hBlanking = _("Blanking");
-	const	hColumns = _("Cols");
-	const	hHRTC = _("HRTC");
-	const	hView = _("View");
+	const	hPixels = _("input[name='Pixels']");
+	const	hBlanking = _("input[name='Blanking']");
+	const	hColumns = _("input[name='Cols']");
+	const	hHRTC = _("input[name='HRTC']");
+	const	hView = _("input[name='View']");
 	const	hShadow = document.getElementById("Shadow");
 	//
 	const	nCounts = iQuartz / (15625 * nDots);
@@ -34,6 +35,12 @@ function calculate(_) {
 	hRaster.width = `${width - Border}px`;
 	hRaster.borderRightWidth = `${Border}px`;
 	hRaster.backgroundSize = `${Width / nCounts * 2}px 10px`;
+}
+</script>
+<script>
+function main(_) {
+	_("input[name='Quartz']").addEventListener("change", calculate.bind(_));
+	_("input[name='Dots']").addEventListener("change", calculate.bind(_));
 }
 </script>
 
@@ -64,8 +71,7 @@ div#Shadow {
 </style>
 </head>
 
-<body style=background-color:green>
-<form onchange='calculate(this.elements.namedItem.bind(this.elements))'>
+<body onload='main(document.querySelector.bind(document))' style=background-color:green>
 Quartz
 <br />
 <input name=Quartz type=number min=1 max=27 value=16 />MHz
@@ -86,12 +92,6 @@ Raster size
 <input name=HRTC type=number disabled />Characters per HRTC
 <br />
 <input name=View type=number disabled />Characters are in visibled
-<br />
-<br />
-Quartz
-<br />
-<input name=Clock type=number disabled />MHz
 <hr id=Raster />
 <div id=Shadow></div>
-</form>
 </body>
