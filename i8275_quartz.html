@@ -3,49 +3,129 @@
 <title>Raster Calculator</title>
 
 <script>
-function calculate() {
+function setup(el, number, one, two, lot) {
+	el.value = Number(Math.floor(number * 1000) / 1000);
+	el.nextElementSibling.textContent = (number % 100 > 9 && number % 100 < 20) || number % 10 > 4 || number % 10 == 0 ? lot : number % 10 > 1 ? two : one;
+}
+
+function calculator() {
 	const	_ = this;
-	const	width = document.body.offsetWidth - 1;
-	const	hRaster = document.getElementById("Raster").style;
+	const	width	= document.body.offsetWidth - 1;
 	//
-	const	iQuartz = _("input[name='Quartz']").value * 1000000;
-	const	nDots = _("input[name='Dots']").value;
-	//
-	const	hPixels = _("input[name='Pixels']");
-	const	hBlanking = _("input[name='Blanking']");
-	const	hColumns = _("input[name='Cols']");
-	const	hHRTC = _("input[name='HRTC']");
-	const	hView = _("input[name='View']");
-	const	hShadow = document.getElementById("Shadow");
-	//
-	const	nCounts = iQuartz / (15625 * nDots);
+	const	Quartz	= _.Quartz.value * 1000000;
+	const	Dots	= _.Dots.value;
+	const	Pixels	= Quartz / 15625;
+	const	Blanking= Pixels / 16;
+	const	Columns	= Pixels / Dots;
+	const	Shades	= Pixels / Dots / 16;
+	const	Chars	= Columns - Shades;
 	//
 	const	Width = Math.floor(width);
 	const	Border = Math.floor(width / 16);
 	//
-	hPixels.value = iQuartz / 15625;
-	hBlanking.value = iQuartz / 15625 / 16;
-	hColumns.value = nCounts / 2;
-	hHRTC.value = iQuartz / 15625 / 16 / nDots / 2;
-	hView.value = nCounts / 2 - (nCounts / 9);
+	const	nCounts = Quartz / (15625 * Dots);
+	const	Views	= nCounts - (nCounts / 4.5);
+	let	HRTC	= (Math.floor(Shades + 0.5) | 1) + 1;
+	let	Cols	= ((Columns - HRTC) >> 1) * 2;
+	HRTC = (Math.floor(Quartz / 15625 / Dots - Cols + 0.5) | 1) + 1;
+	Cols	= (((Columns - HRTC) >> 1) + 1) * 2;
+	const	HRTClock= Quartz / ((HRTC + Cols) * Dots);
 	//
-	hShadow.style.borderLeftWidth = `${width / 10}px`;
-	hShadow.style.borderRightWidth = `${width / 8}px`;
-	hShadow.style.width = `$(width - width / 10 - width / 8}px`;
-	hRaster.width = `${width - Border}px`;
-	hRaster.borderRightWidth = `${Border}px`;
-	hRaster.backgroundSize = `${Width / nCounts * 2}px 10px`;
+	setup(_.Dots, Dots, "отсчёт", "отсчёта", "отсчётов");
+	setup(_.Pixels, Pixels, "точка", "точки", "точек");
+	setup(_.Blanking, Blanking, "точка", "точки", "точек");
+	setup(_.Columns, Columns, "знакоместо", "знакоместа", "знакомест");
+	setup(_.Shades, Shades, "знакоместо", "знакоместа", "знакомест");
+	setup(_.Chars, Chars, "знакоместо", "знакоместа", "знакомест");
+	setup(_.Views, Views, "знакоместо", "знакоместа", "знакомест");
+	setup(_.Cols, Cols, "столбец", "столбца", "столбцов");
+	setup(_.HRTC, HRTC, "знакоместо", "знакоместа", "знакомест");
+	setup(_.HRTClock, HRTClock, "Герц", "Герца", "Герц");
+	//
+	_.Shadow.style.width = `$(width - width / 10 - width / 8}px`;
+	_.Shadow.style.borderLeftWidth = `${width / 10}px`;
+	_.Shadow.style.borderRightWidth = `${width / 8}px`;
+	_.Raster.style.width = `${width - Border}px`;
+	_.Raster.style.borderRightWidth = `${Border}px`;
+	_.Raster.style.backgroundSize = `${Width / nCounts}px 10px`;
+}
+
+function custom() {
+	const	_ = this;
+	const	width	= document.body.offsetWidth - 1;
+	//
+	const	Quartz	= _.Quartz.value * 1000000;
+	const	Dots	= _.Dots.value;
+	const	Pixels	= Quartz / 15625;
+	const	Blanking= Pixels / 16;
+	const	Columns	= Pixels / Dots;
+	const	Shades	= Pixels / Dots / 16;
+	const	Chars	= Columns - Shades;
+	//
+	const	Width = Math.floor(width);
+	const	Border = Math.floor(width / 16);
+	//
+	const	nCounts = Quartz / (15625 * Dots);
+	const	Views	= nCounts - (nCounts / 4.5);
+	const	Cols	= Number(_.Cols.value);
+	const	HRTC	= Number(_.HRTC.value);
+	const	HRTClock= Quartz / ((HRTC + Cols) * Dots);
+	//
+	setup(_.Cols, Cols, "столбец", "столбца", "столбцов");
+	setup(_.HRTC, HRTC, "знакоместо", "знакоместа", "знакомест");
+	setup(_.HRTClock, HRTClock, "Герц", "Герца", "Герц");
+	//
+	_.Shadow.style.width = `$(width - width / 10 - width / 8}px`;
+	_.Shadow.style.borderLeftWidth = `${width / 10}px`;
+	_.Shadow.style.borderRightWidth = `${width / 8}px`;
+	_.Raster.style.width = `${width - Border}px`;
+	_.Raster.style.borderRightWidth = `${Border}px`;
+	_.Raster.style.backgroundSize = `${Width / nCounts}px 10px`;
 }
 </script>
+
+<script>
+var	params = {
+		Quartz	:calculator,
+		Dots	:calculator,
+		Pixels	:null,
+		Blanking:null,
+		Columns	:null,
+		Shades	:null,
+		Chars	:null,
+		HRTC	:null,
+		Views	:null,
+		Raster	:null,
+		Shadow	:null,
+		Cols	:custom,
+		HRTC	:custom,
+		HRTClock:null
+	};
+
+var	hQuartz	= null;
+var	hDots	= null;
+var	hPixels	= null;
+</script>
+
 <script>
 function main(_) {
-	_("input[name='Quartz']").addEventListener("change", calculate.bind(_));
-	_("input[name='Dots']").addEventListener("change", calculate.bind(_));
+	for(var id in params) {
+		const	el = document.getElementById(id);
+		if(el) {
+			if(params[id])
+				el.addEventListener("change", params[id].bind(params));
+			params[id] = el;
+		}
+	}
+	calculator.bind(params)();
+//	_("input[name='Quartz']").addEventListener("change", calculate.bind(_));
+//	_("input[name='Dots']").addEventListener("change", calculate.bind(_));
 }
 </script>
 
 <style>
 body {
+	background-color:silver;
 	margin		:0 0 0 0;
 }
 
@@ -71,27 +151,32 @@ div#Shadow {
 </style>
 </head>
 
-<body onload='main(document.querySelector.bind(document))' style=background-color:green>
-Quartz
-<br />
-<input name=Quartz type=number min=1 max=27 value=16 />MHz
-<br />
-<br />
-Character width
-<br />
-<input name=Dots type=number min=1 max=16 value=6 />Dots
+<body onload='main()'>
+<table>
+<tr><th>Частота кварца</th><th>Ширина знакоместа</th></tr>
+<tr>
+<td><input id=Quartz type=number min=1 max=27 value=16 />МГц</td>
+<td><input id=Dots type=number min=1 max=16 value=12 /><span></span></td>
+</tr>
+</table>
 <hr />
-Raster size
-<br />
-<input name=Pixels type=number disabled />Pixels per row
-<br />
-<input name=Blanking type=number disabled />Pixels per blanking
-<br />
-<input name=Cols type=number disabled />Characters per row
-<br />
-<input name=HRTC type=number disabled />Characters per HRTC
-<br />
-<input name=View type=number disabled />Characters are in visibled
+<table>
+<tr><th>Характеристики строки растра</th></tr>
+<tr><td><input id=Pixels type=number min=64 max=2048 readonly /><span></span> на строку</td></tr>
+<tr><td><input id=Blanking type=number min=4 max=2048 readonly /><span></span> на ССИ</td></tr>
+<tr><td><input id=Columns type=number min=64 max=2048 readonly /><span></span> на строку</td></tr>
+<tr><td><input id=Shades type=number min=4 max=2048 readonly /><span></span> на ССИ</td></tr>
+<tr><td><input id=Chars type=number min=64 max=2048 readonly /><span></span> в строке буфера</td></tr>
+<tr><td><input id=Views type=number min=64 max=2048 readonly /><span></span> в поле видимости</td></tr>
+</table>
+<hr />
+<table>
+<tr><th>Рекомендуемые настройки ВГ75</th></tr>
+<tr><td><input id=Cols type=number min=64 max=2048 /><span></span> на строку</td></tr>
+<tr><td><input id=HRTC type=number min=4 max=2048 /><span></span> на HRTC</td></tr>
+<tr><td><input id=HRTClock type=number min=4 max=2048 readonly /><span></span> строчной развёртки</td></tr>
+</table>
+<hr />
 <hr id=Raster />
 <div id=Shadow></div>
 </body>
