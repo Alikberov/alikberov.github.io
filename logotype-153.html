@@ -1,0 +1,273 @@
+<html>
+<head>
+<title>Paguo-86PK logotype</title>
+
+<script>
+const	reader	= new FileReader();
+//
+var	fileName;
+var	image;
+var	img;
+var	imData;
+</script>
+
+<script>
+const binary = [
+/*00*/ 0xE7, 0xF3, 0x00, 0x01, 0x00, 0x40, 0x01, 0xC0, 0x4D, 0xB3, 0x11, 0x53, 0x08, 0xE0, 0xFF, 0xFF,
+/*10*/ 0x41, 0x4C, 0x49, 0x4B, 0x42, 0x45, 0x52, 0x4F, 0x56, 0x20, 0x32, 0x30, 0x32, 0x34, 0x00, 0xFF,
+/*20*/ 0xE1, 0x7E, 0x23, 0xF9, 0xE1, 0xC1, 0xBE, 0x23, 0x03, 0xC2, 0x26, 0x00, 0xE1, 0x36, 0x00, 0x2B,
+/*30*/ 0xD1, 0x73, 0x72, 0xD1, 0x73, 0x72, 0x23, 0x36, 0x23, 0x7E, 0x7E, 0xE6, 0x20, 0xCA, 0x3A, 0x00,
+/*40*/ 0xEB, 0xE1, 0x36, 0x80, 0x2E, 0x04, 0x3A, 0x02, 0x00, 0x77, 0x3A, 0x03, 0x00, 0x77, 0x23, 0x71,
+/*50*/ 0x70, 0x2E, 0x08, 0x36, 0xA4, 0xEB, 0x01, 0x23, 0xE0, 0x16, 0x22, 0x7E, 0xA2, 0xCA, 0x5B, 0x00,
+/*60*/ 0xE6, 0x02, 0xCA, 0x5B, 0x00, 0xFE, 0x00, 0xFE, 0x00, 0xFE, 0x00, 0x70, 0x71, 0xC3, 0x5B, 0x00
+];
+
+class FILE86RK {
+	constructor() {
+		this.stream = [];
+		this.block = [];
+	}
+	saveFile(fileName) {
+		function base64ToArrayBuffer(base64) {
+			var binaryString = base64;
+			var binaryLen = binaryString.length;
+			var bytes = new Uint8Array(binaryLen);
+			for(var i = 0; i < binaryLen; ++ i)
+				bytes[i] = binaryString[i];
+			return bytes;
+		}
+		//
+		function saveByteArray(fileName, bytes) {
+			var blob = new Blob([bytes], {type: "application/octet-stream"});
+			var link = document.createElement("A");
+			link.href = window.URL.createObjectURL(blob);
+			link.download = fileName;
+			document.body.appendChild(link);
+			link.click();
+		}
+		//
+		let	crc = this.getCRC();
+		let	size = this.stream.length;
+		let	end = size - 1;
+		this.stream.unshift(0x00, 0x00, end >> 8, end & 255);
+		this.stream.push(0x00, 0x00, 0xE6, crc >> 8, crc & 255);
+		saveByteArray(fileName, base64ToArrayBuffer(this.stream));
+	}
+	saveText(text) {
+		for(const chr of text.split(""))
+			this.block.push(chr.charCodeAt(0));
+		while(this.block.length < 128)
+			this.block.push(0);
+	}
+	saveByte(data) {
+		this.block.push(data);
+	}
+	saveBytes(data) {
+		this.block.push(...data);
+	}
+	saveBlock() {
+		while(this.block.length < 256)
+			this.block.push(0);
+		this.stream.splice(this.stream.length, 0, ...this.block.splice(0, 256));
+	}
+	saveData(data) {
+		this.stream.push(...data);
+	}
+	getCRC() {
+		let	crc = 0;
+		let	i = this.stream.length;
+		for(let code of this.stream) {
+			code &= 0xFF;
+			if(-- i)
+				crc += code * 0x0101;
+			else
+				crc = (crc & 0xFF00) + ((crc + code) & 0xFF);
+			crc &= 0xFFFF;
+		}
+		return crc;
+	}
+}
+
+var	cnv;
+var	ctx;
+
+function open_file(el) {
+	const	offsetX = document.getElementById("OffsetX");
+	const	offsetY = document.getElementById("OffsetY");
+	const	offsetH = document.getElementById("OffsetH");
+	const	file = el.files[0];
+	//
+	cnv = document.getElementById("Screen");
+	ctx = cnv.getContext("2d");
+	//
+	image = document.createElement("img");
+	image.src = URL.createObjectURL(file);
+	image.addEventListener("load", place);
+	//
+	fileName = file.name.replace(/\.GIF|\.PNG$/i, ".RKR");
+	//
+	document.querySelector("div").style.display = "block";
+	el.style.display = "none";
+	if("OffsetX" in window.localStorage)
+		offsetX.value = Number(window.localStorage.OffsetX);
+	if("OffsetY" in window.localStorage)
+		offsetY.value = Number(window.localStorage.OffsetY);
+	if("OffsetH" in window.localStorage)
+		offsetH.value = Number(window.localStorage.OffsetH);
+}
+
+
+function rgbToHsl(r, g, b) {
+	r /= 255; g /= 255; b /= 255;
+	let max = Math.max(r, g, b);
+	let min = Math.min(r, g, b);
+	let d = max - min;
+	let h;
+	if(d === 0)
+		h = 0;
+	else
+	if(max === r)
+		h = (g - b) / d % 6;
+	else
+	if(max === g)
+		h = (b - r) / d + 2;
+	else
+	if(max === b)
+		h = (r - g) / d + 4;
+	let l = (min + max) / 2;
+	let s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+	return {
+		h:h * 60,
+		s:s,
+		l:l
+	}
+}
+function place() {
+	const	offsetX = document.getElementById("OffsetX").value;
+	const	offsetY = document.getElementById("OffsetY").value;
+	const	offsetH = document.getElementById("OffsetH").value;
+	var	i = 0;
+	//
+	if(cnv.width != image.width || cnv.height != image.height)
+		cnv.width = image.width,
+		cnv.height = image.height;
+	ctx.save();
+	ctx.clearRect(0, 0, cnv.width, cnv.height);
+	ctx.globalAlpha = 0.5;
+	ctx.drawImage(image, 0, 0);
+	ctx.globalAlpha = 1.0;
+	ctx.drawImage(image, offsetX, offsetY, 94, 153, offsetX, offsetY, 94, 153);
+	//
+	img = ctx.getImageData(offsetX, offsetY, 94, 153);
+	imData = img.data;
+	//
+	for(var y = 0; y < 153; ++ y) {
+		for(var x = 0; x < 94; ++ x) {
+			var	b = imData[i];
+			var	g = imData[i + 1];
+			var	r = imData[i + 2];
+			var	hsl = rgbToHsl(r, g, b);
+			var	c;
+			if(offsetH < 0)
+				c = hsl.h;//Math.abs(hsl2.h - offsetH) > 30 ? 0 : 255;
+			else
+				c = g;
+			imData[i] = imData[i + 1] = imData[i + 2] = c;
+			i += 4;
+		}
+	}
+	ctx.putImageData(img, offsetX, offsetY);
+	ctx.restore();
+}
+
+function save_rk() {
+	const	offsetX = document.getElementById("OffsetX").value;
+	const	offsetY = document.getElementById("OffsetY").value;
+	const	offsetH = document.getElementById("OffsetH").value;
+	const	File = new FILE86RK();
+	//
+	window.localStorage.OffsetX = offsetX;
+	window.localStorage.OffsetY = offsetY;
+	window.localStorage.OffsetH = offsetH;
+	//
+	var	i = 0;
+	var	dmp = [];
+	var	txt = [];
+	//
+	dmp.push(...binary);
+	//
+	if(window.location.href.match(/#apogey/i)) {
+		fileName = fileName(/RKR$/, "RKA");
+		dmp[7] = 0xEF;
+		dmp[13] = 0xF0;
+	}
+	//
+	while(dmp.length < 256)
+		dmp.push(0);
+	//
+	//
+	for(var y = 0; y < 153; ++ y) {
+		for(var x = 0; x < 47; ++ x) {
+			var	b1 = imData[i ++];
+			var	g1 = imData[i ++];
+			var	r1 = imData[i ++];
+			i ++;
+			var	b2 = imData[i ++];
+			var	g2 = imData[i ++];
+			var	r2 = imData[i ++];
+			i ++;
+			if(offsetH < 0) {
+				switch(((g1 & 0xC0) >> 2) | ((g2 & 0xC0) >> 6)) {
+				case 0x00:	dmp.push(0x00);	break;
+				case 0x01:	dmp.push(0x4A);	break;
+				case 0x02:	dmp.push(0x2F);	break;
+				case 0x03:	dmp.push(0x02);	break;
+				case 0x10:	dmp.push(0x4C);	break;
+				case 0x11:	dmp.push(0x22);	break;
+				case 0x12:	dmp.push(0x1B);	break;
+				case 0x13:	dmp.push(0x5D);	break;
+				case 0x20:	dmp.push(0x01);	break;
+				case 0x21:	dmp.push(0x1B);	break;
+				case 0x22:	dmp.push(0x70);	break;
+				case 0x23:	dmp.push(0x25);	break;
+				case 0x30:	dmp.push(0x35);	break;
+				case 0x31:	dmp.push(0x5B);	break;
+				case 0x32:	dmp.push(0x01);	break;
+				case 0x33:	dmp.push(0x03);	break;
+				}
+			} else {
+				dmp.push((g1 > offsetH ? 1 : 0) | (g2 > offsetH ? 2 : 0));
+			}
+		}
+		if(y % 51 != 50)
+			dmp.push(0xF1);
+		else
+		if(y != 152)
+			dmp.push(0x7F);
+	}
+	dmp.push(0xF3, 0);
+	//
+	File.saveData(dmp);
+	//
+	File.saveFile(fileName);
+}
+</script>
+
+<style>
+div {
+	display		:none;
+}
+</style>
+
+</head>
+
+<body>
+<input id=Picture type=file onchange='open_file(this)' />
+<div>
+<input id=OffsetX type=number min=0 max=640 value=92 onchange='place()' />,
+<input id=OffsetY type=number min=0 max=480 value=56 onchange='place()' />/
+<input id=OffsetH type=number min=-7 max=255 value=128 onchange='place()' />
+<button onclick='save_rk()'>Save</button><br />
+<canvas id=Screen width=94 height=153></canvas>
+</div>
+</body>
