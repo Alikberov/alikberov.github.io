@@ -1,0 +1,208 @@
+<html>
+<head>
+<script>
+var	Program	= [];
+var	Binary	= [];
+var	Vars	= [];
+var	Value;
+var	VarId;
+var	log;
+var	Element = 0;
+var	Running	= -1;
+var	Monitor;
+var	Input;
+var	Watcher	= Meeting;
+var	Hue = "#FFF", Ink = "#000";
+
+function Wait() {
+	document.getElementById("Monitor" + Element).addEventListener(
+	"keyup", function() {
+			if(13 == event.keyCode) {
+				Vars[VarId] = this.value;
+				this.disabled = "disabled";
+				Exec();
+			}
+		}
+	);
+	document.getElementById("Monitor" + Element).focus();
+	Element ++;
+}
+
+function Exec() {
+	var	op = Binary.shift(), cont = Exec, id, tmp;
+	if(op)
+		switch(op.cmd) {
+		case "CLS":
+			Monitor.innerHTML = "";
+			Element = 0;
+			break;
+		case "ASK":
+			Input.innerHTML = "";
+			Input.focus();
+			VarId = op.exp;
+			cont = false;
+			Watcher = Exec;
+			break;
+		case "AT":
+			if(op.exp in Vars)
+				Running = Vars[op.exp] - 1;
+			else
+				Running = Math.floor(parseInt(op.exp, 10) / 10) - 101;
+			Binary = [];
+			break;
+		case "DEF":
+			Vars[op.exp] = Running;
+			break;
+		case "HEY":
+			if(op.exp == "")
+				Monitor.innerHTML += "<br />";
+			else
+			if(op.exp == "_")
+				Monitor.innerHTML += "<hr />";
+			else {
+				tmp = "<span style='color:" + Ink + "; background-color:" + Hue + "'>";
+				if(op.exp in Vars)
+					tmp += Vars[op.exp];
+				else
+					tmp += op.exp.replace(/"([^"]*)"/, "$1");
+				Monitor.innerHTML += tmp + "</span>";
+			}
+			break;
+		case "HUE":
+			Hue = "#" + op.exp;
+			break;
+		case "IF":
+			Value = op.exp in Vars ? Vars[op.exp] : op.exp.replace(/"([^"]*)"/, "$1");
+			break;
+		case "IS":
+			if(op.exp in Vars) {
+				if(Value != Vars[op.exp])
+					Binary.shift();
+			} else
+			if(Value != op.exp.replace(/"([^"]*)"/, "$1"))
+				Binary.shift();
+			break;
+		case "INK":
+			Ink = "#" + op.exp;
+			break;
+		case "RUN":
+			Running = 0;
+			op = true;
+			break;
+		case "END":
+			Watcher = Meeting;
+			Binary = [];
+			Monitor.innerHTML += "<hr />OK:<br />";
+			break;
+		case "LIST":
+			log = [];
+			id = 1000;
+			Program.forEach
+			(function(all) {
+				var	s = [], row = all.slice();
+				while(row.length) {
+					s.push(row[0][0] + (row[0][1] == "" ? "" : " " + row[0][1]));
+					row.shift();
+				}
+				log.push(id + " " + s.join(":"));
+				id += 10;
+			});
+			log.push("");
+			Monitor.innerHTML = log.join("<br />");
+			break;
+		}
+	else
+		Watcher = Meeting;
+	if(Running >= 0 && Binary.length == 0)
+		ParseRow(Program[++ Running], -1);
+	if(cont && op)
+		setTimeout(cont, 1);
+}
+
+function ParseRow(commands, part) {
+	var	cmds = commands.slice(), cmd, i = 1;
+	while(cmds.length) {
+		cmd = cmds.shift();
+		if(cmd) {
+			if(!isFinite(part) || part < 0 || part == i)
+				Binary.push({cmd: cmd[0].toUpperCase(), exp: cmd[1]});
+			++ i;
+		} else
+			break;
+	}
+}
+
+function Meeting(elem) {
+	var	cns = elem.textContent.split(/\r?\n/);
+	var	id, idd, expr;
+	log = [];
+	cns.forEach
+	(function(row) {
+		var	cmd = row.match(/([0-9]+\s?)?(.*)/);
+		var	cmds	= [], tmp;
+		if(cmd) {
+			while(cmd[2]) {
+				expr = cmd[2].match(/(:*[A-Z_][0-9_A-Z]*)(\s*)("[^"]*"|[^:]*)*/i);//.exec(cmd[2]);
+				if(expr) {
+					tmp = [expr[1], expr[2] || "", expr[3] || ""];
+					cmd[2] = cmd[2].substr(tmp.join("").length);
+					if(":" == tmp[0].charAt(0))
+						tmp[0] = tmp[0].replace(/^:+/, "");
+					cmds.push([tmp[0], tmp[2]]);
+				} else
+					break;
+			}
+			if(cmd[1]) {
+				id = parseInt(cmd[1], 10);
+				idd = (id - id % 10) / 10 - 100;
+				if(id < 1000)
+					Program.unshift(cmds);
+				else
+				if(id % 10)
+					if(cmd[1])
+						Program.splice(idd, 0, cmds);
+					else
+						Program.splice(idd, 1);
+				else
+				if(cmds)
+					Program[idd] = cmds;
+				else
+					Program.splice(idd, 1);
+			} else
+				ParseRow(cmds, -1);
+		}
+	});
+//	document.getElementById("Logs").innerHTML = log.join("<br />");
+	Exec();
+}
+window.onload	= function() {
+	Input	= document.getElementById("Input");
+	Monitor	= document.getElementById("Monitor");
+	Input.addEventListener(
+	"keydown", function() {
+			if(13 == event.keyCode) {
+				Monitor.innerHTML += this.textContent;
+				Vars[VarId] = this.textContent;
+				Watcher(this);
+				window.event.returnValue = false;
+				this.textContent = "";
+				return false;
+			}
+		}
+	);
+	Input.focus();
+}</script>
+</head>
+<body>
+<pre><span id=Monitor></span><pre id=Input contenteditable=true>
+1000 ..Copyright (C) 2018 by Alikberov..
+1010 CLS:HEY "Hello, World!":HEY _
+1020 DEF Ask:HUE FE8:HEY "Your Name?"
+1030 ASK N$:HEY:IF N$:IS "":AT Ask:INK 37D
+1040 HEY "I'm glad to see You, "
+1050 HEY N$
+1060 END
+RUN</pre>
+</pre>
+<pre id=Logs></pre>
+</body>
