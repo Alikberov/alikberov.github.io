@@ -1,0 +1,3289 @@
+<html>
+<head>
+<meta http-equiv=refresh content='600'>
+<title>It's Koyaanisqatsi, baby!</title>
+<script>
+var	linkTo
+	= {
+		gist	:{
+			host	:"https://gist.githubusercontent.com/Alikberov",
+			list	:"/66bb9698f58765031522c600dda55260/raw/koy-mac-catalogue.txt"
+		}
+	};
+</script>
+<script>
+Number.prototype.toHex = function(n) {
+	return	(n < 0 ? "0x" : "") + ("0000000" + this.toString(16)).substr(-Math.abs(n)).toUpperCase();
+}
+</script>
+<script>
+const	hRefresh = setTimeout
+	(function() {
+		window.location = "";
+	}, 30000);
+window.addEventListener("mouseover",
+	function() {
+		clearTimeout(hRefresh);
+	}
+);
+if(window.location.protocol != "file:")
+	clearTimeout(hRefresh);
+</script>
+<script>
+const	getters	= {
+		right	:function() { return 0x0F & this; },
+		left	:function() { return 0x0F & (this >> 4); },
+		low	:function() { return 0xFF & this; },
+		high	:function() { return 0xFF & (this >> 8); },
+		isNum	:function() { return (this & 15) <= 9; },
+		isReg	:function() { return (this & 15) >= 0xA && (this & 15) <= 0xD; },
+		isDec	:function() { return (this & 15) <= 9 && ((this >> 4) & 15) <= 9 && this > 0; }
+	};
+for(var fn in getters)
+	Number.prototype.__defineGetter__(fn, getters[fn]);
+/*Number.prototype.__defineGetter__("right",
+	function() {
+		return this & 15;
+	}
+);
+Number.prototype.__defineGetter__("left",
+	function() {
+		return (this >> 4) & 15;
+	}
+);
+Number.prototype.__defineGetter__("low",
+	function() {
+		return this & 255;
+	}
+);
+Number.prototype.__defineGetter__("high",
+	function() {
+		return (this >> 8) & 255;
+	}
+);
+Number.prototype.__defineGetter__("isNum",
+	function() {
+		return this <= 9;
+	}
+);
+Number.prototype.__defineGetter__('isReg",
+	function() {
+		return this >= 0xA && this <= 0xD;
+	}
+);*/
+</script>
+<script>
+var	i;
+</script>
+<script>
+var	KOY
+= function() {
+	this.cps = 1;			// Cycles Per Second
+	this.is_peek = false;
+	this.cycles = 0;
+	this.ticks = 0;
+	this.classic = false;
+	this.prefix = false;
+	this.prefixes = 0;
+	this.marginal = 0;		// Vector's prefixes margins
+	this.address = 0;		// Vector's indexing accumulator
+	this.offset = 0;		// Vector's offset value
+	this.pairs = 0;			// Vector's using pairs flags
+	this.id = 0;
+	this.dis_pointer = 0;
+	this.dis_address = 0x0000;
+	this.dis_lines = 16;
+	this.dis_line_letters = 24;
+	this.dis_line_bytes = 4;
+	this.dis_line_lettersingle = 30;
+	this.dis_line_bytesingle = 2;
+	this.dis_lines_points = [];
+	this.dis_points_lines = [];
+	this.dis_lines_tables = [];
+	//////////////////////////////////////////////////////////////////////
+	this.devices
+	= {
+		i8255	:{
+			init	:
+				function() {
+					this.state = [];
+					for(var i = 0; i < 256; ++ i)
+						this.state[i] = [0x00, 0x00, 0x00, 0x00];
+				}
+			,
+			clock	:
+				function() {
+				}
+			,
+			read	:
+				function(index, port) {
+					return	this.state[index][port & 3];
+				}
+			,
+			write	:
+				function(index, port, data) {
+					this.state[index][port & 3] = data & 0xFF;
+				}
+		},
+		i8279	:{
+			init	:
+				function() {
+					this.state = [];
+					this.mode = [];
+					this.freq = [];
+					for(var i = 0; i < 256; ++ i) {
+						this.state[i] = 0;
+						this.mode[i] = 0;
+						this.freq[i] = 0;
+					}
+				}
+			,
+			clock	:
+				function() {
+				}
+			,
+			read	:
+				function(index, port) {
+					switch(port) {
+					case 0x00:
+						if(!this._this.is_peek) {
+							if(hUserPad.selectionEnd == hUserPad.selectionStart + 1) {
+								hUserPad.selectionStart ++;
+								hUserPad.selectionEnd ++;
+								if(hUserPad.selectionStart >= hUserPad.value.length) {
+									tmp = hUserPad.value.indexOf("$run ");
+									if(tmp >= 0) {
+										hUserPad.selectionStart = tmp + 5;
+										hUserPad.selectionEnd = hUserPad.selectionStart + 1;
+									}
+								}
+							}
+						}
+						return hUserPad.value.charCodeAt(hUserPad.selectionStart) & 0xFF;
+					}
+					return	0xFF;
+				}
+			,
+			write	:
+				function(index, port, data) {
+					switch(port) {
+					case 0x01:
+						if((port & 0xE0) == 0x00)
+							// 0_0_0_D_D_K_K_K
+							//       0 0 ------->  8×8 character display - left entry
+							//       0 1 -------> 16×8 character display - left entry
+							//       1 0 ------->  8×8 character display - right entry
+							//       1 1 -------> 16×8 character display - right entry
+							//           0 0 0 -> Encoded Scan Keyboard - 2-Key Lock-out
+							//           0 0 1 -> Decoded Scan Keyboard - 2-Key Lock-out
+							//           0 1 0 -> Encoded Scan Keyboard - N-Key Roll-over
+							//           0 1 1 -> Decoded Scan Keyboard - N-Key Roll-over
+							//           1 0 0 -> Encoded Scan Sensor Matrix
+							//           1 0 1 -> Decoded Scan Sensor Matrix
+							//           1 1 0 -> Strobed Input. Encoded Display Scan
+							//           1 1 1 -> Strobed Input. Decoded Display Scan
+							this.mode[index] = data & 0x1F;
+						if((port & 0xE0) == 0x20)
+							this.freq[index] = data & 0x1F; 
+						break;
+					}
+				}
+		},
+		i82C0	:{
+			init	:
+				function() {
+				}
+			,
+			clock	:
+				function() {
+				}
+			,
+			read	:
+				function(index, port) {
+					return	this.state[index][port & 3];
+				}
+			,
+			write	:
+				function(index, port, data) {
+					if(data == 0x00)
+						hEmuLog.textContent = "";
+					else
+						hEmuLog.textContent += String.fromCharCode(data);
+				}
+		},
+		i82CB	:{
+			init	:
+				function() {
+					this.buffer = new Uint8Array(256 * 8);
+				}
+			,
+			clock	:
+				function() {
+				}
+			,
+			read	:
+				function(index, port) {
+					return	0;
+				}
+			,
+			write	:
+				function(index, port, data) {
+					var	addr = (index & 0xFF) << 3;
+					var	x = (index & 0x0F) << 3;
+					var	y = (index & 0xF0) >> 1;
+					var	pixels;
+					var	alfa = 0;
+					this.buffer[addr + (port & 7)] = data & 0xFF;
+				}
+		},
+		i82CD	:{
+			init	:
+				function() {
+					this.buffer = new Uint8Array(256 * 8);
+				}
+			,
+			clock	:
+				function() {
+				}
+			,
+			read	:
+				function(index, port) {
+					return	0;
+				}
+			,
+			write	:
+				function(index, port, data) {
+					var	addr = (index & 0xFF) << 3;
+					var	x = (index & 0x0F) << 3;
+					var	y = (index & 0xF0) >> 1;
+					var	pixels;
+					var	alfa = 0;
+					this.buffer[addr + (port & 7)] = data & 0xFF;
+					if((this.buffer[addr] | this.buffer[addr + 1]
+					| this.buffer[addr + 2] | this.buffer[addr + 3]
+					| this.buffer[addr + 4] | this.buffer[addr + 5]
+					| this.buffer[addr + 6] | this.buffer[addr + 7]) != 0)
+						alfa = 255;
+					for(var h = 0; h < 8; ++ h) {
+						pixels = hDisplay.getImageData(x + h, y, 1, 8);
+						data = this.buffer[addr + h];
+						for(var i = 0; i < 8; ++ i) {
+							pixels.data[i * 4 + 0] = data & 1 ? 0xFF : 0x00;
+							pixels.data[i * 4 + 1] = data & 1 ? 0xFF : 0x00;
+							pixels.data[i * 4 + 2] = data & 1 ? 0xFF : 0x00;
+							pixels.data[i * 4 + 3] = alfa;
+							data >>= 1;
+						}
+						hDisplay.putImageData(pixels, x + h, y);
+					}
+				}
+		}
+	};
+	//////////////////////////////////////////////////////////////////////
+	this.ram = new Array(65536);
+	//////////////////////////////////////////////////////////////////////
+	this.rams
+	= new Proxy
+	(new Array(65536),
+		{
+			get: function(target, name) {
+				if(0x00D0 <= name && name <= 0x00D9) {
+					if(name <= 0x00D7) {
+						if(("i82" + target[0x00D9].toHex(2)) in target.devices) {
+							return target.devices["i82" + target[0x00D9].toHex(2)].read(target[0x00D8], (+name & 0x7));
+						}
+					}
+				}
+				return target[name];
+			},
+			set: function(target, name, data) {
+				if(0x00D0 <= name && name <= 0x00D9) {
+					if(name <= 0x00D7) {
+						target[0xD000 + +target[0x00D9] * 16 + (+name & 0x000F)] = data;
+						if(("i82" + target[0x00D9].toHex(2)) in target.devices) {
+							target.devices["i82" + target[0x00D9].toHex(2)].write(target[0x00D8], (+name & 0x7), +data);
+						}
+					} else
+					if(name == 0x00D8)
+						target[0xD000 + +target[0x00D9] * 16 + (+name & 0x000F)] = data;
+					else {
+						if(data == 0xCB)
+							hScreen.canvas.style.zoom = 1;
+						target[0x00D9] = data;
+					}
+/*					switch(target[0x00D9]) {
+					case 0xC0:
+						switch(+name) {
+						case 0x00D0:
+							if(data == 0x00)
+								hEmuLog.textContent = "";
+							else
+								hEmuLog.textContent += String.fromCharCode(data);
+						}
+						break;
+					default:
+					}*/
+				}
+				if(name >= 0x7000 && 0x9FFF >= name) {
+					var	addr = +name - 0x7000;
+					var	x = addr % 120;
+					var	y = (addr - x) / 120;
+					hGraphic.data[addr * 16 + 0] = +data;
+					hGraphic.data[addr * 16 + 1] = +data;
+					hGraphic.data[addr * 16 + 2] = +data;
+					hGraphic.data[addr * 16 + 3] = 0xFF;
+					hGraphic.data[addr * 16 + 4] = +data;
+					hGraphic.data[addr * 16 + 5] = +data;
+					hGraphic.data[addr * 16 + 6] = +data;
+					hGraphic.data[addr * 16 + 7] = 0xFF;
+					hGraphic.data[addr * 16 + 8] = +data;
+					hGraphic.data[addr * 16 + 9] = +data;
+					hGraphic.data[addr * 16 + 10] = +data;
+					hGraphic.data[addr * 16 + 11] = 0xFF;
+					hGraphic.data[addr * 16 + 12] = +data;
+					hGraphic.data[addr * 16 + 13] = +data;
+					hGraphic.data[addr * 16 + 14] = +data;
+					hGraphic.data[addr * 16 + 15] = 0xFF;
+					hScreen.putImageData(hGraphic, 0, 0);
+					//hScreen.fillStyle = "#" + (+data * 0x010101).HEX(6);
+					//hScreen.fillRect(x * 2, y * 2, 2, 2);
+				}
+				return target[name] = data;
+			}
+		}
+	);
+	//////////////////////////////////////////////////////////////////////
+	this.ram.base = 0x0000;
+	this.ctx = new Array(0xFFF + 1);
+	for(i = 0; i < this.ctx.length; ++ i)
+		this.ctx[i] = 0;
+	this.ctx.devices = this.devices;
+	for(i = 0; i < 8; ++ i) {
+		Object.defineProperty(this.ctx, 0xD0 + i,
+			{
+				set: (
+					function(data) {
+						var	id = this._this.ctx[0xD9];
+						var	name = `i82${id.toHex(2)}`;
+						if(name in this._this.devices)
+							this._this.devices[name].write(this._this.ctx[0xD8], this.index, data);
+						else
+							this._this.ctx[0xE0 + id] = data;
+					}
+				).bind(
+					{
+						_this	:this,
+						index	:i
+					}
+				),
+				get: (
+					function() {
+						var	id = this._this.ctx[0xD9];
+						var	name = `i82${id.toHex(2)}`;
+						if(name in this._this.devices)
+							return this._this.devices[name].read(this._this.ctx[0xD8], this.index);
+						return this._this.ctx[0xE0 + id];
+					}
+				).bind(
+					{
+						_this	:this,
+						index	:i
+					}
+				)
+			}
+		);
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ctx.receiver
+	= function(data) {
+		var	vector = this[this[0x00AE] | 0x0F];
+		if(isFinite(data))
+			this[vector] = data.low;
+		else
+		if(typeof data == "string")
+			return vector.toHex(2).toLowerCase() + data;
+		return this[vector];
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ctx.translator
+	= function(data) {
+		var	vector = this[(this[0x00AE].right << 4) | 0x000F];
+		if(isFinite(data))
+			this[vector] = data.low;
+		else
+		if(typeof data == "string")
+			return vector.toHex(2).toLowerCase() + data;
+		return this[vector];
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ctx.state
+	= function(data) {
+		if(isFinite(data))
+			this[0x00A0] = (data & 0xFF ? 0 : 1) | (data & 0x100 ? 2 : 0) | (data & 0x80 ? 8 : 0);
+		return this[0x00A0];
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ctx.pointer
+	= function(index, address) {
+		if(typeof address == "string")
+			return (0x0BC0 | index).toHex(3) + address;
+		else
+		if(isFinite(address)) {
+			this[this.base | index] = address.high;
+			this[(this.base | index) + 0x10] = address.low;
+		}
+		return (this[this.base | index] << 8) | this[(this.base | index) + 0x10];
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ram.toDump
+	= function(address, width) {
+		var	i;
+		var	n = address.low;
+		var	row, data;
+		var	dump = [];
+		address &= 0xFF00;
+		for(i = 0; i < 256; ++ i) {
+			if(i.right == 0)
+				row = [(address + i).toHex(4) + ":"];
+			data = this[address + i];
+			if(isFinite(data))
+				data = data.toHex(2);
+			else
+				data = "--";
+			row.push(
+				(i == n ? "<span class=ActiveByte>" + data + "</span>":
+				(i > n && i <= n + width - 1 ? "<span class=ActiveByte>" + data + "</span>" : data)
+				));
+			if(i.right == 15)
+				dump.push(row.join(" "));
+		}
+		return dump;
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.ram.set
+	= function(data) {
+		var	address;
+		var	ram = this;
+		//
+		if("string" == typeof data) {
+			data
+			.split(/\r?\n/)
+			.forEach
+			(function(row) {
+				row
+				.split(/\s+|\t+/)
+				.forEach
+				(function(chars) {
+					data = chars.match(/[0-9A-F]{2,4}/);
+					if(data)
+						switch(data[0].length) {
+						case 4:
+							address = parseInt(data[0], 16);
+							break;
+						case 2:
+							ram[address ++] = parseInt(data[0], 16);
+							break;
+						}
+					else
+					if(chars.match(/'./))
+						ram[address ++] = chars.charCodeAt(1) & 0xFF;
+				});
+			});
+		} else
+			address = this.length;
+			while(address -- > 0)
+				this[address] = isFinite(data) ? data : 0;
+		return this;
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.context
+	= function() {
+		var	i;
+		var	text = [];
+		var	flags = this.ctx[0xA0];
+		text.push(`[${("   " + this.marginal.toString(10)).substr(-4)}#${this.id<160?"D"+(this.id>>4):"  "}+${this.address.toHex(4)}+${this.offset.toHex(4)}]${this.prefixes}`);
+		text.push(`PC:${this.ctx.pointer(0x00BE).toHex(4)} TICKS:${this.ticks}`);
+		text.push(`AF:${flags & 0x08 ? "AF(Is Among)" : "NA(No Among)"}`);
+		text.push(`BF:${flags & 0x04 ? "BF(Is ???)" : "NB(No ???)"}`);
+		text.push(`CF:${flags & 0x02 ? "CF(Is Carry)" : "NC(No Carry)"}`);
+		text.push(`DF:${flags & 0x01 ? "DF(Is Duplex)" : "ND(No Duplex)"}`);
+		this.is_peek = true;
+		for(i = 0; i <= 9; ++ i) {
+			text.push(`A${i}:${this.ctx[0xA0 + i].toHex(2)} BC${i}:${this.ctx.pointer(0xB0 | i).toHex(4)}/D${i}:${this.ctx[0xD0 + i].toHex(2)}`);
+		}
+		this.is_peek = false;
+		return text.join("\r\n");
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.prepareImage
+	= function(im) {
+		var	pScr = [];
+		var	hSrc = document.createElement("canvas").getContext("2d");
+		hSrc.canvas.width = im.width;
+		hSrc.canvas.height = im.height;
+		hSrc.canvas.setAttribute("crossOrigin", "");
+		hSrc.imageSmoothingEnabled = false;
+		hSrc.drawImage(im, 0, 0);
+		var	imdt = hSrc.getImageData(0, 0, hSrc.canvas.width, hSrc.canvas.height);
+		var	data = imdt.data;
+		var	len = data.length;
+		var	i, bytes, code = 0;
+		var	bc, gc, rc;
+		var	sprite = false;
+		var	flag, index;
+		var	paper, sprite, indexes, output;
+		var	rrggbb;
+		//
+		for(i = 0; i < len; i += 4) {
+			paper = {
+				b: (data[i] & 0x30) << 2,
+				g: (data[i + 1] & 0x30) << 2,
+				r: (data[i + 2] & 0x30) << 2
+				};
+			sprite = {
+				b: (data[i] & 0xC0),
+				g: (data[i + 1] & 0xC0),
+				r: (data[i + 2] & 0xC0)
+				};
+			indexes = {
+				b: (data[i] & 0x0C) << 4,
+				g: (data[i + 1] & 0x0C) << 4,
+				r: (data[i + 2] & 0x0C) << 4
+				};
+			flag = paper.r == sprite.r && paper.g == sprite.g && paper.b == sprite.b;
+			if(flag) {
+				output = {
+					r: paper.r & 0xC0,
+					g: paper.g & 0xC0,
+					b: paper.b & 0xC0
+					};
+			} else {
+				output = {
+					r: sprite.r & 0xC0,
+					g: sprite.g & 0xC0,
+					b: sprite.b & 0xC0
+					};
+			}
+			data[i] = output.b;
+			data[i + 1] = output.g;
+			data[i + 2] = output.r;
+			code = ((indexes.r & 0xC0) >> 2) | ((indexes.g & 0xC0) >> 4) | ((indexes.b & 0xC0) >> 6);
+			output_rrggbb = (output.r >> 2) | (output.g >> 4) | (output.b >> 6);
+			paper_rrggbb = (paper.r >> 2) | (paper.g >> 4) | (paper.b >> 6);
+			sprite_rrggbb = (sprite.r >> 2) | (sprite.g >> 4) | (sprite.b >> 6);
+			if(index != code) {
+				index = code;
+				pScr.push(index);
+				pScr.push(128 + paper_rrggbb);
+			} else {
+				pScr.push(128 + 64 + sprite_rrggbb);
+				pScr.push(128 + 0 + paper_rrggbb);
+			}
+		}
+		//
+		pScr.width = hSrc.canvas.width;
+		pScr.height = hSrc.canvas.height;
+		return pScr;
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.render
+	= function(hCnv, pScr) {
+		if(hCnv.canvas.width != pScr.width || hCnv.canvas.height != pScr.height) {
+			hCnv.canvas.width = pScr.width * 2;
+			hCnv.canvas.height = pScr.height * 2;
+		}
+		var	imdt = hCnv.getImageData(0, 0, hCnv.canvas.width, hCnv.canvas.height);
+		var	data = imdt.data;
+		var	r = 0, g = 0, b = 0;
+		var	len = data.length / 3;
+		var	dup = hCnv.canvas.width * 4;
+		var	i = 0, bytes, index = 0, shift = 0;
+		var	d, x, y;
+		var	s = 0;
+		var	mask = this.devices.i82CB.buffer.slice(0x0, 0x08);
+		var	rn, gn, bn, noisel = 0;
+		//
+		for(y = 0; y < hCnv.canvas.height; ++ y) {
+			for(x = 0; x < hCnv.canvas.width; ++ x) {
+				if(-- noisel < 0) {
+					noisel = Math.floor(Math.random() * 64 * this.render.noise / 100) + 8;
+					rn = Math.floor(Math.random() * 256 * this.render.noise / 100);
+					gn = Math.floor(Math.random() * 256 * this.render.noise / 100);
+					bn = Math.floor(Math.random() * 256 * this.render.noise / 100);
+				}
+				d = pScr[s ++];
+				if(d & 128) {
+					if(((d >> 6) & 1) == ((mask[index] >> shift) & 1)) {
+						b = ((d & 3) << 6) ^ bn;
+						g = ((d & 12) << 4) ^ gn;
+						r = ((d & 48) << 2) ^ rn;
+					}
+				} else {
+					index = (d >> 3) & 15;
+					shift = d & 7;
+				}
+				data[i] = b;
+				data[i + 1] = g;
+				data[i + 2] = r;
+				data[i + 3] = 255;
+				data[i + dup] = b;
+				data[i + dup + 1] = g;
+				data[i + dup + 2] = r;
+				data[i + dup + 3] = 255;
+				i += 4;
+				if(x == hCnv.canvas.width - 1)
+					i += dup;
+			}
+		}
+		hCnv.putImageData(imdt, 0, 0);
+	}
+	//////////////////////////////////////////////////////////////////////
+	function parse_vector(text) {
+		var	j;
+		var	base;
+		var	product = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		var	offset = 0, sign = 1;
+		var	scan = 0;
+		var	immediate = text.match(/\$[-+]?/);
+		var	mode = 0;
+		var	parts;
+		var	codes = [], code;
+		var	uses, used;
+		var	using, usings;
+		if(text.match(/\$\+D/i) || text.match(/\$\+\d/))
+			mode = 1,
+			parts = text.replace(/\$\+/, "").match(/(D\d)|(\+\d*D\d)|([-+]\d+)/g);
+		else
+		if(text.match(/\d+#/))
+			mode = Number(text.match(/(\d+)/)[1]),
+			parts = text.replace(/\d+#/, "").match(/(D\d)|(\+\d*D\d)|([-+]\d+)/g);
+		else
+			parts = text.match(/(D\d)|(\+\d*D\d)|([-+]\d+)/g);
+		if(parts) {
+			base = Number(parts[0].substr(-1));
+			for(i = 1; i < parts.length; ++ i) {
+				if(parts[i].match(/\+\d*D\d/)) {
+					product[Number(parts[i].substr(-1))] += isFinite(parseInt(parts[i].substr(1))) ? parseInt(parts[i].substr(1)) : 1;
+				} else
+				if(parts[i].match(/[-+]\d+/)) {
+					if(parts[i].match(/-\d+/))
+						sign = -1;
+					offset = Number(parts[i].substr(1));
+				}
+			}
+			for(i = 0; i <= 9; ++ i) {
+				j = -1;
+				while((product[i] >> (j + 1)) > 0)
+					++ j;
+				if(scan < j)
+					scan = j;
+			}
+			used = 0;
+			usings = [];
+			usings.push(base);
+			while(scan >= 0) {
+				uses = 0;
+				using = [];
+				i = usings.pop();
+				code = [];
+				if((product[i] >> scan) > 0) {
+					product[i] -= 1 << scan;
+					uses |= 1 << i;
+					code.push(i);
+					if(scan > 0 && ((product[i] >> (scan - 1)) & 1) > 0)
+						using.push(String(i));
+				}
+				for(i = 0; i <= 9; ++ i) {
+					if((product[i] >> scan) > 0) {
+						uses |= 1 << i;
+						code.push(String(i));
+						if(scan > 0 && ((product[i] >> (scan - 1)) & 1) > 0)
+							using.push(i);
+					}
+				}
+				if((used & uses) == 0)
+					codes.push(String(base));
+				codes = codes.concat(code);
+				for(i = 0; i <= 9; ++ i) {
+					if((product[i] >> scan) > 0)
+						product[i] -= 1 << scan;
+				}
+				-- scan;
+				used = uses;
+				usings = [base].concat(using);
+			}
+		}
+		i = codes.length;
+		while(-- i >= 0) {
+			codes[i] += String(offset % 10);
+			offset = Math.floor(offset / 10);
+		}
+		while(offset > 0) {
+			codes.unshift(String(base) + String(offset % 10));
+			offset = Math.floor(offset / 10);
+		}
+		if(immediate)
+			codes.unshift(String(base) + "0"),
+			codes.unshift(String(base) + "0");
+		if(sign < 0)
+			codes.unshift(String(base) + "0");
+		if(typeof mode != "number")
+			mode = mode ? Number(mode[1]) : 0;
+		while(mode > 0) {
+			codes.unshift(String(mode % 10) + "0");
+			codes.unshift(String(mode % 10) + "0");
+			mode = Math.floor(mode / 10);
+		}
+		return codes.join(" ");
+	}
+	//////////////////////////////////////////////////////////////////////
+	function show_vector(codes) {
+		var	mul = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		var	sep = -1;
+		var	offset = 0;
+		var	hi, lo, i;
+		var	exp = [""];
+		var	last = -1;
+		var	nulls = 0;
+		var	mode = 0;
+		var	key = 0;
+		var	flag;
+		var	sign = "+";
+		var	pairs = 0;
+		var	marginal = 0;
+		console.log(codes.join(" "));
+		codes
+		.forEach
+/*				this.offset += this.offset << 2;
+				this.offset <<= 1;
+				this.offset += ic.right;
+				if(this.offset == 0 && ic.left == this.id.left && this.pairs == (1 << this.id.left))
+					this.marginal = this.marginal * 10 + ic.left,
+					this.id = 160,
+					this.pairs = 0;
+				else
+				if(((this.pairs >> ic.left) & 1) > 0) {
+					this.address <<= 1,
+					this.pairs = (1 << ic.left);
+					if(this.id < 160)
+						this.pairs |= (1 << this.id.left);
+					if(ic.left != this.id.left && this.id < 160)
+						this.address += this.ctx.pointer(0x00B0 | ic.left);
+				} else
+				if(this.id < 160) {
+					this.pairs |= (1 << ic.left);
+					++ this.prefixes;
+					this.address += this.ctx.pointer(0x00B0 | ic.left);
+				} else
+				//if(this.offset == 0 && this.prefixes % 2 == 0)
+					this.id = ic,
+					this.pairs |= (1 << this.id.left),
+					this.address = 0;
+				ic = this.ram[++ ip];
+				if(this.pairs == 0)
+					++ this.prefixes;
+*/		(function(data) {
+			if(data.length > 1 && isFinite(data.substr(0, 2))) {
+				hi = Math.floor(Number(data.substr(0, 2)) / 10);
+				lo = Number(data.substr(0, 2)) % 10;
+				offset = Number(offset) * 10 + lo;
+				if(offset == 0 && hi == sep && pairs == 0) {
+					console.log(sep);
+					marginal = marginal * 10 + hi,
+					sep = -1,
+					pairs = 0;
+				} else
+				if(((pairs >> hi) & 1) > 0 || hi == sep) {
+					for(i = 0; i < 10; ++ i)
+						mul[i] <<= 1;
+					pairs = (1 << hi);
+					if(sep >= 0)
+						pairs |= (1 << sep);
+					if(hi != sep && sep >= 0)
+						mul[hi] ++;
+				} else
+				if(sep >= 0)
+					pairs |= (1 << hi),
+					mul[hi] ++;
+				else
+					sep = hi,
+					mul[0] = mul[1] = mul[2] = mul[3] = mul[4] = mul[5] = mul[6] = mul[7] = mul[8] = mul[9] = 0;
+/*				if(offset == 0 && hi == sep && lo == 0) {
+					key = key * 10 + sep,
+					sep = -1;
+				} else
+				if(sep < 0)
+					sep = hi;
+				else
+				if(sep == hi || (mul[hi] & 1) > 0) {
+					flag = true;
+					for(i = 0; i < 10; ++ i) {
+						if(mul[i] > 0)
+							flag = false;
+						mul[i] <<= 1;
+					}
+					if(sep != hi)
+						mul[hi] ++;
+					else
+					if(flag) {
+						mode ++;
+						/*if((mode > 0) && (mode % 2) == 0)
+							key = key * 10 + sep,
+							sep = -1;*//*
+					}
+				} else {
+					if(sep == last)
+						for(i = 0; i < 10; ++ i)
+							mul[i] <<= 1;
+					mul[hi] ++;
+				}
+				last = hi;*/
+			}
+		});
+		for(i = 0; i < 10; ++ i) {
+			if(sep != i && mul[i] > 0)
+				exp.push("+" + mul[i] + "*D" + i);
+		}
+		//key = mode;
+		if(offset == 0)
+			offset = "";
+		else
+			offset = String(offset);
+		return (marginal == "" ? "" : `${marginal}#`) + "D" + sep + exp.join("") + (offset != "" ? "+" + offset : "");
+		switch(marginal % 10) {
+		case 0: 
+		case 1: return "$" + exp.join("") + "+" + offset;
+		case 2:	return `BC${sep}` + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 3: return `BC${sep}` + exp.join("") + (offset != "" ? "-" + offset : "");
+		case 4: return `BC${sep}` + "++" + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 5: return `BC${sep}` + "--" + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 6: return "++" + `BC${sep}` + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 7: return "--" + `BC${sep}` + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 8:	return `BC${sep}` + exp.join("") + (offset != "" ? "+" + offset : "");
+		case 9: return `BC${sep}` + exp.join("") + (offset != "" ? "-" + offset : "");
+		//case 0: case 1: return "D" + sep + exp.join("") + sign + offset;
+		//case 2:	case 3: return "$" + exp.join("") + sign + offset;
+		default: return "???";
+		}
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.assembly
+	= function(text, head) {
+		var	_this = this;
+		var	rows = text.split(/\r?\n/);
+		var	i, j;
+		var	ri, ti;
+		var	part, text;
+		var	curLabel = "";
+		var	address = 0x0000;
+		var	command, code;
+		var	group, no_carry;	// Group of command and add/sub vs adc/sbb
+		var	codes;
+		var	rcv = "X", trs = "X";
+		var	regs = {A:0xA0, B:0xB0, C:0xC0, D:0xD0};
+		var	alu = {
+				ADD:10, ADC:10, INC:10,
+				DEC:11, SBB:11, SUB:11,
+				AND:12, CLR:12, CON:12,
+				DIS:13, OR:13, SET:13,
+				EOR:14, NOT:14, XOR:14,
+				FOR:15, MOV:15
+			};
+		var	defs = {};
+		var	labels = [];
+		var	label;
+		var	review = 0;
+		var	usr;
+		var	vector, offset;
+		var	__, _;
+		var	arg, prefixes;
+		var	inf;
+		//
+		do {
+			label = [];
+			for(i = 0; i < rows.length; ++ i) {
+				codes = [];
+				this.dis_lines_points[i + head] = address;
+				this.dis_points_lines[address] = i + head;
+				part = /([^:;"'`\s]*(?::))?(?:\s)*([^\s;]*)(?:\s*)([^\s,;"'`]*)(?:[,\s]*)?([^\s,;"'`]*)?(?:[,\s]*)?([^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/.exec(rows[i]);
+				if(part[1]) {
+					switch(part[2].toUpperCase()) {
+					case ".DEF":
+						defs[part[1].toUpperCase()] = { bytes: 0, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					case ".DEFB":
+						defs[part[1].toUpperCase()] = { bytes: 1, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					case ".DEFW":
+						defs[part[1].toUpperCase()] = { bytes: 2, code: parseInt(part[3])};
+						this.dis_lines_points[i + head] = parseInt(part[3]) << 8;
+						break;
+					default:
+						part[1] = part[1].replace(/[ :]$/, "");
+						tmp = part[1].replace(/:/g, "..").match(/(\.*)(.*)/);
+						label = label.slice(0, tmp[1].length).concat(tmp[2].split("."));
+						part[1] = label.join(".");
+						if(labels[part[1]] != address)
+							delete labels[labels[part[1].toUpperCase()]];
+						labels[address] = part[1];
+						labels[part[1].toUpperCase()] = address;
+						break;
+					}
+				}
+				if(part[2].toUpperCase() == ".DEF") {
+					rcv = "X", trs = "X";
+					regs.A = 0xFA;
+					regs.B = 0xFB;
+					regs.C = 0xFC;
+					regs.D = 0xFD;
+					if(part[3].toUpperCase() in defs)
+						address = defs[part[3].toUpperCase()].code << 8;
+					this.dis_lines_points[i + head] = address;
+					this.dis_points_lines[address] = i + head;
+				} else
+				if(part[2].charAt(0) == ".") {
+					switch(part[2].toUpperCase()) {
+					case ".DBG_BYTES":
+						this.dis_line_bytes = parseInt(part[3]);
+						if(part[4])
+							this.dis_line_bytesingle = parseInt(part[4]);
+						else
+							this.dis_line_bytesingle = parseInt(part[3]);
+						break;
+					case ".DBG_CHARS":
+						this.dis_line_letters = parseInt(part[3]);
+						if(part[4])
+							this.dis_line_lettersingle = parseInt(part[4]);
+						else
+							this.dis_line_lettersingle = parseInt(part[3]);
+						break;
+					case ".ORG":
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						if(part[3].toUpperCase() in defs)
+							address = defs[part[3].toUpperCase()].code << 8;
+						else
+							address = parseInt(part[3]);
+						this.dis_lines_points[i + head] = address;
+						this.dis_points_lines[address] = i + head;
+						break;
+					case ".EQU":
+						labels[part[1].toUpperCase()] = parseInt(part[3]);
+						this.dis_lines_points[i + head] = parseInt(part[3]);
+						break;
+					case ".DB":
+						if(part[5] && (part[5].charAt(0) == '"')) {
+							this.dis_lines_points[i + head] = address;
+							part[5].substr(1, part[5].length - 2)
+							.replace(/\\0/g, "\0")
+							.replace(/\\n/g, "\n")
+							.replace(/\\r/g, "\r")
+							.replace(/\\t/g, "\t")
+							.split("")
+							.forEach
+							(function(ascii) {
+								_this.dis_lines_tables[address] = true;
+								_this.dis_points_lines[address] = i + head;
+								_this.ram[address ++] = ascii.charCodeAt(0);
+								return 0;
+							});
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3]);
+						}
+						break;
+					case ".DW":
+						code = parseInt(part[3]);
+						this.dis_lines_points[i + head] = address;
+						this.dis_points_lines[address] = i + head;
+						this.dis_lines_tables[address] = true;
+						this.ram[address ++] = code.low;
+						this.dis_points_lines[address] = i + head;
+						this.dis_lines_tables[address] = true;
+						this.ram[address ++] = code.high;
+						break;
+					case ".CLR":
+						rcv = "X", trs = "X";
+						break;
+					case ".DEF":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 0, code: parseInt(part[4])};
+						break;
+					case ".DEFB":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 1, code: parseInt(part[4])};
+						break;
+					case ".DEFW":
+						if(!part[1])
+							this.dis_lines_points[i + head] = parseInt(part[4]) << 8,
+							defs[part[3].toUpperCase()] = { bytes: 2, code: parseInt(part[4])};
+						break;
+					case ".IMGUR":
+						hSprites.src = "https://i.imgur.com/" + part[3];
+						break;
+					}
+				}
+				part[3] = part[3].replace(/(\.*)([A-Z_a-z][A-Z_a-z.0-9]*)/g, function(str, nest, tag) {
+					var	tmp;
+					if(label && labels.length) {
+						tmp = labels[label.slice(0, nest.length).concat(tag.split(".")).join(".").toUpperCase()];
+						if(isFinite(tmp))
+							return Number(tmp);
+						return	nest + tag;
+					}
+					return str;
+				});
+				if(part[4])
+				part[4] = part[4].replace(/(\.*)([A-Z_a-z][A-Z_a-z.0-9]*)/g, function(str, nest, tag) {
+					var	tmp;
+					if(label && labels.length) {
+						tmp = labels[label.slice(0, nest.length).concat(tag.split(".")).join(".").toUpperCase()];
+						if(isFinite(tmp))
+							return Number(tmp);
+						return	nest + tag;
+					}
+					return str;
+				});
+				command = (part[2] + " " + part[3] + (part[4] ? "," + part[4] + (part[5] ? "," + part[5] : "") : "")).toUpperCase();
+				if(part[2].toUpperCase() in defs) {
+					usr = defs[part[2].toUpperCase()];
+					switch(usr.bytes) {
+					case 0:
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = usr.code;
+						break;
+					case 1:
+						if(part[3].match(/[ABC]\d/i)) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3], 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_lines_tables[address] = true;
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[4]);
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]);
+						}
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						break;
+					case 2:
+						if(part[3].match(/BC\d/i)) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3].charAt(0) + part[3].charAt(2), 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = parseInt(part[3].substr(1), 16);
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[4]).low;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[4]).high;
+						} else {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = usr.code;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]).low;
+							this.dis_points_lines[address] = i + head;
+							this.dis_lines_tables[address] = true;
+							this.ram[address ++] = parseInt(part[3]).high;
+						}
+						rcv = "X", trs = "X";
+						regs.A = 0xFA;
+						regs.B = 0xFB;
+						regs.C = 0xFC;
+						regs.D = 0xFD;
+						break;
+					}
+				}
+/*****************************************************************************/
+	arg = [];
+	inf = [];
+	_ = [];
+	var encode = "";
+	group = part[2]
+		.replace(/^(ADC|ADD|AND|CON|DIS|EOR|OR|SBB|SUB|MOV)$/i, "ALU")
+		.replace(/^(CLR|DEC|INC|NOT|SET)$/i, "UNA");
+	no_carry = (part[2].match(/^(ADD|SUB)$/i)) ? "CE " : "";
+	if(part[2].toUpperCase() in alu)
+		encode = alu[part[2].toUpperCase()];
+	for(j = 3; j <= 5 && j < part.length; ++ j) {
+		if(part[j] && part[j] != "") {
+			if(part[j].match(/\[.+\]/))
+				_.push("@"),
+				arg.push(prefixes = parse_vector(part[j].toUpperCase()));
+			else
+				_.push(part[j]),
+				arg.push(part[j]);
+		} else
+			arg.push("");
+	}
+	inf.push(0);
+	__ = part[2].toUpperCase() + (_.length > 0 ? " " + _.join() : "");
+	__ = __.search.bind(__);
+	_ = group + (_.length > 0 ? " " + _.join() : "");
+	_ = _.search.bind(_);
+	switch(0) {
+	case __(/MOV (A0|FLG|FLAGS|PSW),@$/i):				codes = "AA A0 :: 0F"; break;
+	case __(/MOV @,(A0|FLG|FLAGS|PSW)$/i):				codes = ":: A0"; break;
+	case _(/UNA @$/i):						codes = "AA A0 :: 0_"; break;
+	case _(/EXI$/i):						codes = "AA A0 0E"; break;
+	case _(/SWP @,D[0-9]$/i):					codes = "AY A0 :: yF"; break;
+	case _(/SWP D[0-9],@$/i):					codes = "AX A0 :: xF"; break;
+	case _(/ALU @,D[0-9]$/i):					codes = "AY A0 ~:: y_"; break;
+	case _(/INF D[0-9]$/i):						codes = "AX A0 xF"; break;
+	case _(/EHI|EI|STI$/i):						codes = "AD A0 0C"; break;
+	case _(/UNA D[0-9]$/i):						codes = "AD A0 x_"; break;
+	case _(/SWP (A[1-9]|[BC][0-9]),@$/i):				codes = "AX A0 :: xF"; break;
+	case _(/SWP @,(A[1-9]|[BC][0-9])$/i):				codes = "AY A0 :: yF"; break;
+	case _(/ALU @,(A[1-9]|[BC][0-9])$/i):				codes = "AY A0 ~:: y_"; break;
+	case __(/MOV (A0|FLG|FLAGS|PSW),(A[1-9]|[BC][0-9])$/i):		codes = "AY A0 yF"; break;
+	case _(/UNA (A[1-9]|[BC][0-9])$/i):				codes = "AX A0 x_"; break;
+	case _(/ALU D[0-9],@$/i):					codes = "XA Xx ~:: 0_"; break;
+	case _(/OUF D[0-9]$/i):						codes = "XA Xx 0F"; break;
+	case _(/UNA D[0-9],CF$/i):					codes = "XA Xx 0_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@$/i):				codes = "XA Xx ~:: 0_"; break;
+	case __(/MOV (A[1-9]|[BC][0-9]),(A0|FLG|FLAGS|PSW)$/i):		codes = "XA Xx 0F"; break;
+	case _(/UNA (A[1-9]|[BC][0-9]),CF$/i):				codes = "XA Xx 0_"; break;
+	case _(/LEA D[0-9],@$$/i):					codes = "XX Xx :: xF"; break;
+	case _(/ORD (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BCD][0-9])$$/i):	codes = "XZ Xx :: zF"; break;
+	case _(/ALU D[0-9],@,D[0-9]$/i):				codes = "XZ Xx :: z_"; break;
+	case _(/ALU D[0-9],D[0-9]$/i):					codes = "XY Xx y_"; break;
+	case _(/LEX (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BC][0-9])$$/i):	codes = "XZ Xx :: zF"; break;
+	case _(/ALU D[0-9],@,(A[1-9]|[BC][0-9])$/i):			codes = "XZ Xx :: z_"; break;
+	case _(/OUT D[0-9],(A[1-9]|[BC][0-9])$/i):			codes = "XY Xx yF"; break;
+	case _(/ALU D[0-9],(A[1-9]|[BC][0-9])$/i):			codes = "XY Xx ~y_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,D[0-9]$/i):			codes = "XZ Xx ~:: z_"; break;
+	case _(/IN (A[1-9]|[BC][0-9]),D[0-9]$/i):			codes = "XY Xx yF"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),D[0-9]$/i):			codes = "XY Xx ~y_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,(A[1-9]|[BC][0-9])$/i):	codes = "XZ Xx ~:: z_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),(A[1-9]|[BC][0-9])$/i):		codes = "XY Xx ~y_"; break;
+	case _(/ALU R[0-9]$/i):						codes = "x_"; break;
+	case _(/ALU R,@,R[0-9]$/i):					codes = "~:: z_"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9],[ABCD][0-9]$/i):		codes = "Xx Yy Zz"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9]$/i):			codes = "Xx Yy"; break;
+	case _(/REG [ABCD][0-9]$/i):					codes = "Xx"; break;
+	case _(/ARG [ABCD][0-9],[ABCD][0-9]$/i):			codes = "XY Xx Yy"; break;
+	case _(/ARG [ABCD][0-9],[ABCD]$/i):				codes = "XY Xx"; break;
+	case _(/ARG [ABCD],[ABCD]$/i):					codes = "XY"; break;
+	case _(/BRK|HA?LT$/i):						codes = "00"; break;
+	case _(/(HA?LT|JU?MP) @$/i):					codes = ":: 00"; break;
+	case __(/(CLR|ERA) [ABCD]F$/i):					codes = "XE"; break;
+	case __(/(CMP|FLP|INV|NOT) [ABCD]F$/i):				codes = "Xx"; break;
+	case __(/SET [ABCD]F$/i):					codes = "XE Xx"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F$/i):		codes = ":: Yy"; break;
+	case _(/DO [ABCD]F,@$/i):					codes = ":: XE"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]F$/i):	codes = ":: YZ"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]E$/i):	codes = "ZF :: YZ ZF"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]F$/i):	codes = "YF :: YZ YF"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]E$/i):	codes = "YF ZF :: YZ ZF YF"; break;
+	case _(/LOOP @,(A[1-9]|[BCD][0-9])$/i):				codes = ":: Yy"; break;
+	case __(/DEC (A[1-9]|[BCD][0-9]),@$/i):				codes = ":: Xx"; break;
+	default:							codes = ""; break;
+	}
+	if(codes != "") {
+		codes = codes
+			.replace(/::/g, prefixes)
+			.replace(/~/g, no_carry)
+			.replace(/_/g, encode.toString(16).toUpperCase())
+			.replace(/X/g, arg[0].charAt(0).toUpperCase())
+			.replace(/x/g, arg[0].charAt(1).toUpperCase())
+			.replace(/Y/g, arg[1].charAt(0).toUpperCase())
+			.replace(/y/g, arg[1].charAt(1).toUpperCase())
+			.replace(/Z/g, arg[2].charAt(0).toUpperCase())
+			.replace(/z/g, arg[2].charAt(1).toUpperCase())
+			.split(/\s/);
+		if(codes[0].match(/[ABCD][ABCD]/) && codes[0] != rcv + trs) {
+			rcv = codes[0].charAt(0), trs = codes[0].charAt(1);
+			this.ram[address ++] = parseInt(rcv + trs, 16);
+		}
+		if(codes.length > 2 && codes[1].match(/[ABCD][0-9]/)) {
+			if(regs[codes[1].charAt(0)] != parseInt(codes[1], 16)) {
+				regs[codes[1].charAt(0)] = parseInt(codes[1], 16);
+				this.ram[address ++] = parseInt(codes[1], 16);
+			}
+		}
+		if(codes.length > 3 && codes[2].match(/[ABCD][0-9]/)) {
+			if(regs[codes[2].charAt(0)] != parseInt(codes[2], 16)) {
+				regs[codes[2].charAt(0)] = parseInt(codes[2], 16);
+				this.ram[address ++] = parseInt(codes[2], 16);
+			}
+		}
+		for(j = 0; j < codes.length - 1; ++ j) {
+			if(codes[j].match(/[0-9][0-9]/) && parseInt(codes[j], 16) > 0)
+				this.ram[address ++] = parseInt(codes[j], 16);
+		}
+		this.ram[address ++] = parseInt(codes[j], 16);
+	}
+/*****************************************************************************/
+/*
+				if(command.match(/REG BC\d/)) {
+					code = parseInt(part[3].charAt(2), 16);
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xB0 + code;
+					regs.B = 0xB0 + code;
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xC0 + code;
+					regs.C = 0xC0 + code;
+				} else
+				if(command.match(/REG [ABCD]\d/)) {
+					code = parseInt(part[3], 16);
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = code;
+					regs[part[3].charAt(0).toUpperCase()] = code;
+				}
+				if(command.match(/ARG [ABCD]\d?,[ABCD]\d?/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(0) + part[4].charAt(0), 16);
+					if(part[3].length == 2) {
+						code = parseInt(part[3], 16);
+						regs[part[3].charAt(0).toUpperCase()] = code;
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = code;
+						rcv = part[3].charAt(0).toUpperCase();
+					}
+					if(part[4].length == 2) {
+						code = parseInt(part[4], 16);
+						regs[part[4].charAt(0).toUpperCase()] = code;
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = code;
+						trs = part[4].charAt(0).toUpperCase();
+					}
+				}
+				if(tmp = command.match(/MOV \[BC(\d+)\+(\d+)\],([ABCD]\d)/)) {
+					vector = tmp[1].padEnd(tmp[2].length, tmp[1].charAt(0));
+					offset = parseInt(tmp[2]);
+					while(vector != "") {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(vector.charAt(0)) * 16 + Math.floor(offset / Math.pow(10, vector.length - 1)) % 10;
+						vector = vector.substr(1);
+					}
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(tmp[3], 16);
+				} else
+				if(tmp = command.match(/LEA BC(\d),\[BC(\d+)\+(\d+)\]/)) {
+					vector = tmp[2].padEnd(tmp[3].length, tmp[2].charAt(0));
+					offset = parseInt(tmp[3]);
+					while(vector != "") {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(vector.charAt(0)) * 16 + Math.floor(offset / Math.pow(10, vector.length - 1)) % 10;
+						vector = vector.substr(1);
+					}
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xDD;
+				} else
+				if(command.match(/ADD BC\d\,BC\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2) + part[4].charAt(2), 16);
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xDD;
+				} else
+				if(command.match(/SWP [ABC]\d,[ABC]\d/)) {
+					ri = parseInt(part[3].charAt(1));
+					ti = parseInt(part[4].charAt(1));
+					if(ri < ti) {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[3].charAt(1) + part[4].charAt(1), 16);
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[3].charAt(0) + part[4].charAt(0), 16);
+					} else {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[4].charAt(1) + part[3].charAt(1), 16);
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[4].charAt(0) + part[3].charAt(0), 16);
+					}
+				} else
+				if(command.match(/DIV BC\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2), 16) * 0x11;
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xAA;
+				} else
+				if(command.match(/MIL BC\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2), 16) * 0x11;
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xBB;
+				} else
+				if(command.match(/MUL BC\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2), 16) * 0x11;
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0xCC;
+				} else
+				if(tmp = command.match(/(ADD|ADC|SUB|SBB|AND|CON|OR|DIS|XOR|EOR|MOV|FOR) ([ABCD]\d?,)?\[BC(\d+)(\+\d+)?(\+[ABCD]\d)?\]/)) {
+					var	cmd = tmp[1];
+					var	dst = tmp[2];
+					vector = tmp[3].padEnd((tmp[4] || "+").length - 1, tmp[3].charAt(0));
+					offset = parseInt(tmp[4]) || 0;
+					var	idx = parseInt(tmp[5], 16);
+					if(dst) {
+						if(rcv != dst.charAt(0) || (tmp[5] ? trs != tmp[5].charAt(1) : false)) {
+							rcv = dst.charAt(0);
+							if(idx)
+								trs = tmp[5].charAt(1);
+							if(trs == "X")
+								trs = rcv;
+							codes.unshift(parseInt(rcv + trs, 16));
+						}
+						code = parseInt(dst, 16);
+						if(code != regs[rcv] && code >= 0xA0) {
+							this.dis_points_lines[address] = i + head;
+							codes.unshift(code);
+							regs[rcv] = code;
+						}
+						while(codes.length > 0) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = codes.shift();
+						}
+					}
+					while(vector != "") {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(vector.charAt(0)) * 16 + Math.floor(offset / Math.pow(10, vector.length - 1)) % 10;
+						vector = vector.substr(1);
+					}
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = +(tmp[5] ? +tmp[5].charAt(2) : 0) * 16 + alu[cmd];
+				} else
+				if(command.match(/(ADD|ADC|SUB|SBB|AND|CON|OR|DIS|XOR|EOR|MOV|FOR) ([ABCD]\d?,)?[ABCD]?\d/)) {
+					if(!part[4]) {
+						if(isFinite(part[3])) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = +part[3] * 16 + alu[part[2]];
+						} else {
+							if(trs != part[3].charAt(0).toUpperCase()) {
+								trs = part[3].charAt(0).toUpperCase();
+								this.dis_points_lines[address] = i + head;
+								this.ram[address ++] = parseInt(rcv + trs, 16);
+							}
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = +(part[3].charAt(1)) * 16 + alu[part[2].toUpperCase()];
+						}
+					} else {
+						if(rcv != part[3].charAt(0).toUpperCase() || trs != part[4].charAt(0).toUpperCase()) {
+							if(part[4].match(/^[ABCD]/)) {
+								rcv = part[3].charAt(0).toUpperCase();
+								trs = part[4].charAt(0).toUpperCase();
+								codes.unshift(parseInt(rcv + trs, 16));
+							}
+						}
+						if(parseInt(part[3], 16) != regs[part[3].charAt(0).toUpperCase()]) {
+							code = parseInt(part[3], 16);
+							if(code >= 0xA0) {
+								codes.unshift(code);
+								regs[part[3].charAt(0).toUpperCase()] = parseInt(part[3], 16);
+							}
+						}
+						while(codes.length > 0) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = codes.shift();
+						}
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = (+(part[4].charAt(1)) || 0) * 16 + alu[part[2].toUpperCase()];
+					}
+				}
+				if(command.match(/^(CMA|CMB|CMC|CMD|AF|BF|CF|DF)/)) {
+					if(part[2].length == 2) {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[2], 16);
+					} else {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[2].charAt(2) + "F", 16);
+					}
+				}
+				if(command.match(/(JAE|JBE|JCE|JDE) BC\d\+\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2) + part[3].charAt(4), 16);
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[2].charAt(1) + "E", 16);
+				} else
+				if(command.match(/(JAF|JBF|JCF|JND|JDF) BC\d\+\d/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[3].charAt(2) + part[3].charAt(4), 16);
+					if(part[2].charAt(1) == "N") {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[2].charAt(2) + "F", 16);
+					} else {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = parseInt(part[2].charAt(1) + "F", 16);
+					}
+				} else
+				if(command.match(/(JAE|JBE|JCE|JDE)/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = parseInt(part[2].charAt(1) + "E", 16);
+				}
+				if(command.match(/(INT) ([0-9A-F]{2}){1,2}/)) {
+					code = parseInt(part[3], 16);
+					if(part[3].length > 2) {
+						if(code.low) {
+							this.dis_points_lines[address] = i + head;
+							this.ram[address ++] = code.low;
+						}
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = code.high;
+					} else {
+						this.dis_points_lines[address] = i + head;
+						this.ram[address ++] = code.low;
+					}
+					rcv = "X", trs = "X";
+					regs.A = 0xFA;
+					regs.B = 0xFB;
+					regs.C = 0xFC;
+					regs.D = 0xFD;
+				}
+				if(command.match(/HLT|HALT/)) {
+					this.dis_points_lines[address] = i + head;
+					this.ram[address ++] = 0x00;
+				}
+*/
+			}
+		} while(review ++ < 2);
+	}
+	//////////////////////////////////////////////////////////////////////
+	i = (function() {
+		var	arr = new Array(256, 0x00);
+		var	i;
+		arr._this = this.ram;
+		for(i = 0xD0; i <= 0xD8; ++ i) {
+			Object.defineProperty(arr, i,
+				{
+					set() {
+						this._this.devices[this[0xD9]](this._this.ram[0xD900], i & 15, data);
+					}
+				}
+			);
+		}
+		return arr;
+	})();
+	//////////////////////////////////////////////////////////////////////
+	var	dis
+	= {
+		addr	:0,
+		read
+		:function(address) {
+			var	ic;	// Instruction Code
+			var	id;	// Instruction Data (Prefix)
+			var	is_id;
+			//
+			do {
+				ic = this.ram[address ++];
+				is_id = (ic.left.isNum && ic.right.isNum && ic > 0);
+				if(is_id && this.classic)
+					return true;
+				id = (id << 8) | ic;
+			} while(is_id);
+		}
+	};
+	//////////////////////////////////////////////////////////////////////
+	this.disassm
+	= function(pc) {
+		var	i;
+		var	address, offset;
+		var	ic;	// Instruction Code
+		var	id = 0;	// Instruction Data / Prefix
+		var	ip = isFinite(pc) ? pc : this.ctx.pointer(0x00BE);
+		var	ctx = this.ctx;//this.ram.slice(this.base, 256);
+		var	pointer;
+		var	pointers;
+		var	bytes;
+		var	rows;
+		var	text;
+		var	dis_line_bytes = this.classic ? this.dis_line_bytesingle : this.dis_line_bytes;
+		var	dis_line_letters = this.classic ? this.dis_line_lettersingle : this.dis_line_letters;
+		var	color;
+		var	active = 0;
+		var	prefix, receiver, args;
+		var	vector;
+		var	source;
+		var	marginal, base, indexers, pairs;
+		var	arg = ctx[0x00AE];
+		var	reg = {
+			0x0F: "??",
+			0xAF: ctx[0x00AF] ? ctx[0x00AF].toHex(2) : "A?",
+			0xBF: ctx[0x00BF] ? ctx[0x00BF].toHex(2) : "B?",
+			0xCF: ctx[0x00CF] ? ctx[0x00CF].toHex(2) : "C?",
+			0xDF: ctx[0x00DF] ? ctx[0x00DF].toHex(2) : "D?"
+		};
+		if(arg == 0)
+			arg = 0xAA;
+		//
+		if(this.dis_address > ip)
+			this.dis_address = ip;
+		do {
+			pointer = this.dis_address;
+			this.dis_pointer = pointer;
+			rows = [];
+			pointers = [];
+			i = this.dis_lines;
+			id = 0;
+			marginal = "";
+			base = "";
+			indexers = "";
+			vector = "";
+			pairs = 0;
+			do {
+				bytes = [];
+				text = "";
+				if(!this.classic)
+					id = 0;
+				pointers.push(pointer);
+				if(!id) {
+					offset = 0;
+					address = pointer;
+				}
+				while(this.dis_lines_tables[pointer]) {
+					bytes.push(this.ram[pointer].toHex(2));
+					pointer ++;
+					text = "...DATA...";
+					color = "Data";
+				}
+				if(text == "")
+				do {
+					if(pointer == ip)
+						active = this.dis_lines - i;
+					ic = this.ram[pointer ++];
+					if(!isFinite(ic))
+						ic = 0;
+					bytes.push(ic.toHex(2));
+					if(this.classic && ic.left.isNum && ic.right.isNum && ic != 0x00) {
+						offset = offset * 10 + ic.right;
+						if(base == "")
+							id = ic.left << 4,
+							base = (marginal == "" ? "" : marginal + "#") + "BC" + ic.left,
+							indexers = "",
+							pairs = 0;
+						else
+						if(id == ic && indexers == "") {
+							marginal += "" + ic.left;
+							id = 0;
+							base = "",
+							pairs = 0;
+						} else {
+							if(indexers == "")
+								indexers = "D" + ic.left;
+							else
+							if(id.left == ic.left)
+								indexers = "2(" + indexers + ")",
+								pairs = 0;
+							else
+							if(((pairs >> ic.left) & 1) > 0)
+								indexers = "2(" + indexers + ")+D" + ic.left,
+								pairs |= 1 << ic.left;
+							else
+								indexers += "+D" + ic.left,
+								pairs |= 1 << ic.left;
+						}
+						text = marginal + (marginal == "" ? "" : "");
+						text += base + (indexers != "" ? "+" + indexers + (offset != 0 ? "+" + offset : "") : "");
+						vector = text;
+						color = "Data";
+						//if(bytes.length < dis_line_bytes - 1)
+							bytes.push("++");
+					} else
+					if(this.classic) {
+						if(id > 0)
+							bytes.unshift("++");
+					} else {
+						var	vv = [];
+						while(ic.left.isNum && ic.right.isNum && ic != 0x00) {
+							vv.push(ic.toHex(2)),
+							ic = this.ram[pointer ++];
+							bytes.push(ic.toHex(2));
+						}
+						/*if(vv.length > 0)
+							bytes.push(ic.toHex(2));*/
+						if(vv.length > 0)
+							vector = show_vector(vv), color = "Data";
+						/*while(ic.left.isNum && ic.right.isNum && ic != 0x00) {
+							if(id == 0) {
+								id = ic;
+								vector = "";//this.ctx.pointer(id.left, "");
+							} else
+							if(id.left != ic.left)
+								vector += "" + ic.left;
+							offset = offset * 10 + ic.right;
+							if(pointer == ip)
+								active = this.dis_lines - i;
+							ic = this.ram[pointer ++];
+							if(!isFinite(ic))
+								ic = 0;
+							bytes.push(ic.toHex(2));
+						}*/
+					}
+					/*if(id > 0 && !this.classic)
+						vector += "+" + offset;*/
+					/*if(ic.left.isReg && ic.right.isNum) {
+						if(id > 0)
+							text = "MOV [" + vector + "]," + ic.toHex(2),
+							color = "CPU_Group_F";
+						else {
+							if(this.classic)
+								text = "REG " + ic.toHex(2),
+								color = "CPU_Group_E",
+								bytes.push("--", "--", "--");
+							reg[ic | 0x0F] = ic.toHex(2);
+						}
+					}*/
+					/*if(ic.left.isReg && ic.right.isReg && vector == "") {
+						if(this.classic)
+							text = "ARG " + ic.left.toHex(1) + "," + ic.right.toHex(1),
+							color = "CPU_Group_E",
+							bytes.push("--", "--");
+						arg = ic;
+					} else
+					if(ic.left.isReg && ic.right.isNum && vector == "") {
+						if(this.classic)
+							text = "REG " + ic.toHex(2),
+							color = "CPU_Group_E",
+							bytes.push("--", "--", "--");
+						reg[ic | 0x0F] = ic.toHex(2);
+					} else */if(text == "") {
+						bytez = arg.toHex(2) + " " +
+							reg[arg | 0x0F] + " " +
+							ic.toHex(2);
+/********************************************************************/
+		var	$ALU = ["ADD", "SUB", "AND", "OR", "EOR", "MOV"];
+		var	$END = ["REA", "REB", "REC", "RED", "RET", "?F?"];
+		var	$INF = ["?A?", "?B?", "?C?", "?D?", "?E?", "INF"];
+		var	$OUF = ["?A?", "?B?", "?C?", "?D?", "?E?", "OUF"];
+		var	$UNO = ["INC", "DEC", "CLR", "SET", "NOT", "?F?"];
+		var	Pattern;
+		var	x;
+		bytez = bytez.split(/\s+/);
+		x = parseInt(bytez[bytez.length - 1].charAt(1), 16);
+		if(x >= 10)
+			x -= 10;
+		$R = bytez[0].charAt(0) + bytez[1].charAt(1);
+		$T = bytez[0].charAt(1) + bytez[bytez.length - 1].charAt(0);
+		$r = "B" + $R.charAt(1) + "C" + $R.charAt(1);
+		$th = "B" + $T.charAt(1);
+		$tl = "C" + $T.charAt(1);
+		$t = $th + $tl;
+		Pattern = $R == $T ? "E" : "N";
+		Pattern += vector != "" ? "M" : "R";
+		Pattern += $R;
+		Pattern += $T;
+		Pattern += bytez[bytez.length - 1].charAt(1);
+		$C = ic.toHex(2);
+		$A = $ALU[x];
+		$E = $END[x];
+		$I = $INF[x];
+		$O = $OUF[x];
+		$U = $UNO[x];
+		$V = "[" + vector + "]";
+		text = (function (_) {
+			switch(0) {
+			case _(/.R...[A-D][A-D]/):
+						arg = ic;
+						if(this.classic) {
+							bytes.push("--");
+							return "X;ARG " + ic.left.toHex(1) + "," + ic.right.toHex(1);
+						} else
+							return "";
+							//color = "CPU_Group_E",
+			case _(/.R...[A-D][0-9]/):
+						reg[ic | 0x0F] = ic.toHex(2);
+						if(this.classic) {
+							bytes.push("--");
+							return "X;REG " + ic.toHex(2);
+						} else
+							return "";
+							//color = "CPU_Group_E",
+			case _(/.M...00/):	return	`B;JMP ${$V}`;
+			case _(/.R...00/):	return	`C;HLT`;
+			case _(/.M...[A-D][0-9]/):	return	`B;LOOP ${$V},${$C}`;
+			case _(/.M...[A-D]E/):	return	`B;DO ${$C},${$V}`;
+			case _(/.MA0A0F/):	return	`F;${$A} ${$R},${$V};Load FLAGS from Memory`;
+			case _(/.MA0A0./):	return	`A;${$U} ${$V};Unar operation with Memory`;
+			case _(/.RA0A0F/):	return	`Z;${$A} ???;Reserved (Forth DUP ???)`;
+			case _(/.RA0A0E/):	return	`Z;${$A} ???;Reserved (Forth ${$A} ??? EXI (Enable eXternal Interruptions))`;
+			case _(/.RA0A0./):	return	`Z;${$A} ???;Reserved (Forth ${$A} ???)`;
+			case _(/.MA0D.F/):	return	`E;SWP ${$V},${$T};Swap Memory with 16-bit Register ${$t}`;
+			case _(/.MA0D../):	return	`D;${$A} ${$V},${$T};${$A} Memory with 16-bit Register ${$t}`;
+			case _(/.RA0D.F/):	return	`C;INF ${$T};Try Input from Port ${$T} and set FLAGS`;
+			case _(/.RA0D0C/):	return	`C;${$U} ${$T};${$U} 16-bit ${$t} / EHI (Enable Hardware Interruptions)`;
+			case _(/.RA0D../):	return	`A;${$U} ${$T};Unconditional unar operation with 16-bit ${$t}`;
+			case _(/.MA0..F/):	return	`E;SWP ${$V},${$T};Swap 8-bit Register and Memory`;
+			case _(/.MA0.../):	return	`A;${$A} ${$V},${$T};${$A} Memory with 8-bit Register`;
+			case _(/.RA0..F/):	return	`F;${$A} ${$R},${$T};Load FLAGS from 8-bit Register`;
+			case _(/.RA0.../):	return	`A;${$U} ${$T};Unconditional unar 8-bit operation`;
+			case _(/.MD.A0./):	return	`D;${$A} ${$R},${$V};${$A} 16-bit Register ${$r} with Memory`;
+			case _(/.RD.A0F/):	return	`C;OUF ${$R};Try Output to port ${$R} and set FLAGS`;
+			case _(/.RD.A0./):	return	`D;${$U} ${$R},CF;Unar operation with 16-bit ${$r} if set CF`;
+			case _(/.M..A0./):	return	`A;${$A} ${$R},${$V};${$A} 8-bit Register with Memory`;
+			case _(/.R..A0F/):	return	`F;${$A} ${$R};Load FLAGS to Register`;
+			case _(/.R..A0./):	return	`A;${$U} ${$R},CF;Unar 8-bit operation if set CF`;
+			case _(/EMD...F/):	return	`D;LEA ${$R},${$V};Load Effective Address to 16-bit ${$r}`;
+			case _(/NMD.D.F/):	return	`D;ORD ${$R},${$V},${$T};16-bit Sort: MIN(${$r})..MID(${$V})..MAX(${$t})`;
+			case _(/.MD.D../):	return	`D;${$A} ${$R},${$V},${$T};16-bit ${$r}=${$A}(Memory,${$t})`;
+			case _(/ERA...F/):	return	`Z;??? ${$R},${$T};Reserved (??? #A: ${$t}=${$t}/${$R}, ${$R}=${$t}%${$R} ???)`;
+			case _(/ERB...F/):	return	`Z;??? ${$R},${$T};Reserved (??? #B)`;
+			case _(/ERC...F/):	return	`Z;??? ${$R},${$T};Reserved (??? #C)`;
+			case _(/ERD...F/):	return	`Z;??? ${$R},${$T};Reserved (Forth OVER ??? ${$t}=${$th}*${$tl} ???)`;
+			case _(/.RD.D../):	return	`D;${$A} ${$R},${$T};${$A} with 16-bit Registers ${$r} and ${$t}`;
+			case _(/.MD...F/):	return	`D;LEX ${$R},${$V},${$T};16-bit Lexicon: ${$r}=${$V}[${$T}*2]`;
+			case _(/.MD..../):	return	`D;${$A} ${$R},${$V},${$T};16-bit ${$r}=${$A}(${$V},sign expanded ${$T})`;
+			case _(/.RD...F/):	return	`C;OUT ${$R},${$T};Output ${$T} to Port ${$R}`;
+			case _(/.RD..../):	return	`D;${$A} ${$R},${$T};16-bit ${$r}=${$A}(${$r},sign expanded ${$T})`;
+			case _(/.M..D.F/):	return	`Z;??? ${$R},${$V},${$T};Reserved`;
+			case _(/.M..D../):	return	`A;${$A} ${$R},${$V},${$T};8-bit ${$R}=${$A}(Memory,Port ${$T})`;
+			case _(/.R..D../):	return	`A;${$A} ${$R},${$T};${$A} with 8-bit Register and Port ${$T}`;
+			case _(/EM....F/):	return	`F;LEX ${$R},${$V},${$T};8-bit Lexicon: ${$R}=${$V}[${$T} (x86-XLAT)`;
+			case _(/NM....F/):	return	`E;ORD ${$R},${$V},${$T};8-bit Sort: MIN(${$R})..MID(${$V})..MAX(${$T})`;
+			case _(/.M...../):	return	`A;${$A} ${$R},${$V},${$T};8-bit ${$R}=${$A}(Memory,${$T})`;
+			case _(/.R...../):	return	`A;${$A} ${$R},${$T};${$A} with 8-bit Registers`;
+			default:		return	"Z;???";
+			}
+		}).bind({classic: this.classic})(Pattern.search.bind(Pattern));
+		if(text != "") {
+			color = "CPU_Group_" + text.split(";")[0],
+			text = /*Pattern+';'+*/text.split(";")[1],
+					vector = "",
+					id = 0,
+					base = "",
+					marginal = "";
+			//if(!this.classic)
+			//		bytes.push(ic.toHex(2));
+		}
+/********************************************************************/
+					}
+/*					if(ic == 0x00) {
+						if(id == 0)
+							text = "HLT",
+							color = "CPU_Group_C";
+						else
+							text = "RET " + vector,
+							color = "CPU_Group_C";
+					}
+					if(ic.left.isNum && ic.right >= 0xA) {
+						if(ctx[0x00F9].left == 0xD) {
+							if(arg > 0)
+								source = ((arg.right << 4) | ic.left).toHex(2);
+							else
+								source = "?" + ic.left.toHex(1);
+							if(id > 0)
+								text = "MOV " + reg[arg | 0x0F] + ",[" + vector + "+" + source + "]",
+								color = "CPU_Group_F";
+							else
+							if(ic.right == 0xF)
+								text = "MOV " + reg[arg | 0x0F] + "," + source,
+								color = "CPU_Group_F";
+							else
+								text = "??? " + reg[arg | 0x0F] + "," + source,
+								color = "CPU_Group_X";
+						} else
+						if(ctx[0x00F9].right == 0xD && id > 0) {
+						} else {
+							text = "ADD SUB AND OR EOR MOV".split(/\s+/)[ic.right - 0xA];
+							text += " " + reg[arg | 0x0F] + ",";
+							if(arg > 0)
+								source = ((arg.right << 4) | ic.left).toHex(2);
+							else
+								source = "?" + ic.left.toHex(1);
+							if(id > 0) {
+								if(ic.left > 0)
+									text += "[" + vector + "+" + source + "]";
+								else
+									text += "[" + vector + "]";
+							} else
+								text += source;
+							color = "CPU_Group_A";
+						}
+					}
+					if(ic.left.isReg && ic.right.isNum) {
+						if(id > 0)
+							text = "MOV [" + vector + "]," + ic.toHex(2),
+							color = "CPU_Group_F";
+						else {
+							if(this.classic)
+								text = "REG " + ic.toHex(2),
+								color = "CPU_Group_E",
+								bytes.push("--", "--", "--");
+							reg[ic | 0x0F] = ic.toHex(2);
+						}
+					}
+					if(ic.left.isReg && ic.right.isReg) {
+						if(id > 0) {
+							if(ic == 0xDD) {
+								text = "ADD " + this.ctx.pointer(id.left, ",") + this.ctx.pointer(id.right, ""),
+								color = "CPU_Group_D";
+							} else {
+								if(ic.left == ic.right && id.left == id.right) {
+									switch(ic) {
+									case 0xAA:
+										text = "DIV " + this.ctx.pointer(id.left, `,A${id.right}`);
+										break;
+									case 0xBB:
+										text = "MIL " + this.ctx.pointer(id.left, `,B${id.right},C${id.right}`);
+										break;
+									case 0xCC:
+										text = "MUL " + this.ctx.pointer(id.left, `,B${id.right},C${id.right}`);
+										break;
+									}
+								} else {
+									if(id.left < id.right)
+										text = "SWP " + ((ic.left << 4) | id.left).toHex(2) +"," + ((ic.right << 4) | id.right).toHex(2);
+									else
+										text = "??? " + ((ic.left << 4) | id.left).toHex(2) +"," + ((ic.right << 4) | id.right).toHex(2),
+										color = "CPU_Group_X";
+								}
+							}
+						} else {
+							if(ic == 0xDD)
+								text = "DBG";
+							else {
+								if(this.classic)
+									text = "ARG " + ic.left.toHex(1) + "," + ic.right.toHex(1),
+									color = "CPU_Group_E",
+								bytes.push("--", "--");
+								arg = ic;
+							}
+						}
+					}
+					if(ic.left.isReg && ic.right == 0xE) {
+						if(id > 0) {
+							text = "JCE JDE JAE JBE".split(/\s+/)[ic.left & 3] + " " + vector;
+						} else
+							text = "JCE JDE JAE JBE".split(/\s+/)[ic.left & 3];
+						color = "CPU_Group_B";
+					}
+					if(ic.left.isReg && ic.right == 0xF) {
+						if(id > 0) {
+							text = "JCF JDF JAF JBF".split(/\s+/)[ic.left & 3] + " " + vector;
+						} else
+							text = "CMC CMD CMA CMB".split(/\s+/)[ic.left & 3];
+						color = "CPU_Group_B";
+					}
+					if(ic >= 0xE0) {
+						text = "INT " + ((ic << 8) | id).toHex(-4);
+						color = "CPU_Group_C";
+					}*/
+					//vector = "";
+				} while(text == "");
+				/*if(this.classic && (base )
+					id = 0;*/
+				while(bytes.length < dis_line_bytes)
+					bytes.unshift("--");
+				if(bytes.length > dis_line_bytes) {
+					do {
+						tmp = address.toHex(4) + " " + bytes.slice(0, dis_line_bytes).join(" ") + "|" + text;
+						if(bytes.length <= dis_line_bytes && tmp.length <= dis_line_letters + 3 * dis_line_bytes) {
+							rows.push(address.toHex(4) + " " + bytes.slice(0, dis_line_bytes).join(" ") + "|" + `<span class=${color}>` + text.padEnd(dis_line_letters, " ") + "</span>");
+							text = "";
+						} else
+						if(bytes.length == dis_line_bytes + 1)
+							rows.push((address.toHex(4) + " " + bytes.join(" ")).padEnd(dis_line_letters, " ")),
+							tmp = "";
+						else
+							rows.push((address.toHex(4) + " " + bytes.slice(0, dis_line_bytes).join(" ") + (bytes.length > dis_line_bytes ? "+" : "")).padEnd(dis_line_letters, " ")),
+							tmp = "";
+						address += dis_line_bytes;
+						bytes.splice(0, dis_line_bytes);
+						if(bytes.length > 1)
+							while(bytes.length < dis_line_bytes)
+								bytes.splice(bytes.length - 1, 0, "--");
+					} while(bytes.length > 1 && -- i > 0);
+					if(text != "" && -- i > 0)
+						rows.push(`${address.toHex(4)}${tmp}|<span class=${color}>${text.padEnd(dis_line_letters, " ").substr(0, dis_line_letters + 3 * dis_line_bytes)}` + "</span>");
+				} else
+					rows.push(address.toHex(4) + " " + bytes.join(" ") + `|<span class=${color}>` + text.padEnd(dis_line_letters, " ") + "</span>");
+				if(this.classic)
+					address ++;
+			} while(-- i > 0);
+			if(pointer - 1 < ip) {
+				this.dis_address = ip;
+				if(pointers.length >= this.dis_lines)
+					this.dis_address = pointers[pointers.length - (this.dis_lines - 1)];
+				continue;
+			}
+		} while(false);
+		return {
+			active	:active,
+			content	:rows.join("\r\n").replace(/^(.+)$/gm, "<span>$1</span>")
+		}
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.init
+	= function() {
+		this.render.noise = 25;
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.reset
+	= function() {
+		this.ctx.pointer(0x00B0, 0x0000);
+		this.ctx.pointer(0x00B1, 0x0001);
+		this.ctx.pointer(0x00B2, 0x0002);
+		this.ctx.pointer(0x00B3, 0x0003);
+		this.ctx.pointer(0x00BE, 0x0000);
+		this.ticks = 0;
+		this.marginal = 0;
+		this.address = 0;
+		this.offset = 0;
+		this.pairs = 0;
+		this.id = 0;
+		for(var dev in this.devices) {
+			try {
+				this.devices[dev]._this = this;
+				this.devices[dev].init();
+			} catch(e) {
+				console.log(e);
+			}
+		}
+	}
+	//////////////////////////////////////////////////////////////////////
+	this.step
+	= function() {
+		const	apr = this.ram.base | 0x00F0;
+		var	address;
+		var	x, y, z;
+		var	flags;
+		var	hollow;	// Hollow command
+		var	ic;	// Instruction Code
+		var	ip = this.ctx.pointer(0x00BE);
+		//
+		do {
+			if(!this.classic || !this.prefix)
+				this.id = 160,
+				this.offset = 0,
+				this.prefixes = 0,
+				this.marginal = 0,
+				this.pairs = 0,
+				this.address = this.ctx.pointer(0x00B0);
+			if(this.id >= 160)
+				this.address = 0,
+				this.offset = 0,
+				this.pairs = 0;
+			hollow = false;
+			this.ticks ++;
+			ic = this.ram[ip];
+			while(ic.left.isNum && ic.right.isNum && ic != 0x00) {
+				// 01..99
+				this.offset += this.offset << 2;
+				this.offset <<= 1;
+				this.offset += ic.right;
+				if(this.offset == 0 && ic.left == this.id.left && this.pairs == 0)//(1 << this.id.left))
+					this.marginal = this.marginal * 10 + ic.left,
+					this.id = 160,
+					this.pairs = 0;
+				else
+				if(((this.pairs >> ic.left) & 1) > 0 || ic.left == this.id.left) {
+					this.address <<= 1,
+					this.pairs = (1 << ic.left);
+					if(this.id < 160)
+						this.pairs |= (1 << this.id.left);
+					if(ic.left != this.id.left && this.id < 160)
+						this.address += this.ctx.pointer(0x00B0 | ic.left);
+				} else
+				if(this.id < 160) {
+					this.pairs |= (1 << ic.left);
+					++ this.prefixes;
+					this.address += this.ctx.pointer(0x00B0 | ic.left);
+				} else
+				//if(this.offset == 0 && this.prefixes % 2 == 0)
+					this.id = ic,
+					this.pairs |= (1 << this.id.left),
+					this.address = 0;
+				ic = this.ram[++ ip];
+				if(this.pairs == 0)
+					++ this.prefixes;
+				this.prefix = true;
+				if(this.classic) {
+					this.ctx.pointer(0x00BE, ip);
+					return true;
+				}
+			}
+			/*while(ic.left.isNum && ic.right.isNum && ic != 0x00) {
+				// 01..99
+				this.offset += this.offset << 2;
+				this.offset <<= 1;
+				this.offset += ic.right;
+				if(ic.left != this.id.left || this.prefixes == 0)
+					this.address = (this.prefixes > 0 ? this.address : 0) + this.ctx.pointer(0x00B0 | ic.left);
+				if(this.prefixes == 0)
+					this.id = ic;
+				ic = this.ram[++ ip];
+				++ this.prefixes;
+				this.prefix = true;
+				if(this.classic) {
+					this.ctx.pointer(0x00BE, ip);
+					return true;
+				}
+			}*/
+			this.prefix = false;
+			if(this.id < 160 && this.classic)
+				this.address += this.ctx.pointer(0x00B0 | this.id.left);
+			this.address += this.offset;
+			this.address &= 0xFFFF;
+			this.id = 160;
+			if(ic == 0x00) {
+				if(this.pairs == 0) {
+					// HLT
+					this.ctx.pointer(0x00B0, ip);
+					this.ctx.pointer(0x00BE, 0x0000);
+				} else {
+					// HLT vector
+					this.ctx.pointer(0x00B0, ip);
+					this.ctx.pointer(0x00BE, this.address);
+				}
+				return false;
+			}
+			if(ic.left.isNum && ic.right >= 0xA) {
+				// ALU Rn,Ti
+				//y = this.ram.translator();
+				if(this.prefixes > 0 && ic.left == 0)
+					y = 0;
+				else
+					y = this.ctx[(this.ctx[0xAE].right << 4) | ic.left];
+				x = this.ctx.receiver();
+				if(this.prefixes > 0) {
+					// ALU Rn,[BCi+k+Tm]
+					y = this.ram[this.address + y];
+				}
+				switch(ic.right) {
+				case 0xA:	// ADD / ADC
+					x += y + ((this.ctx.state() >> 1) & 1);
+					this.ctx.state(x);
+					break;
+				case 0xB:	// SUB / SBB
+					x -= y + ((this.ctx.state() >> 1) & 1);
+					this.ctx.state(x);
+					break;
+				case 0xC:	// CON / AND
+					x &= y;
+					this.ctx.state(x);
+					break;
+				case 0xD:	// DIS / OR
+					x |= y;
+					this.ctx.state(x);
+					break;
+				case 0xE:	// EOR / XOR
+					x ^= y;
+					this.ctx.state(x);
+					break;
+				case 0xF:	// FOR / MOV
+					x = y;
+					break;
+				}
+				this.ctx.receiver(x);
+				ip ++;
+			}
+			if(ic.left.isReg && ic.right.isNum) {
+				if(this.prefixes > 0) {
+					// MOV [BCi+k],Rn
+					this.ram[this.address] = this.ctx[ic];
+				} else {
+					// REG Rn
+					this.ctx[ic | 0x0F] = ic;
+					hollow = !this.classic;
+				}
+				ip ++;
+			}
+			if(ic.left.isReg && ic.right.isReg) {
+				if(this.prefixes > 1) {
+					// Has few prefixes
+					return false;
+				} else
+				if(this.prefixes == 1) {
+					// Has one prefix
+					if(ic == 0xDD) {
+						// ADD BCi,BCk
+						x = this.ctx.pointer(0x00B0 | this.id.left);
+						y = this.ctx.pointer(0x00B0 | this.id.right);
+						this.address = x + y + ((this.ctx[0x00A0] >> 1) & 1);
+						this.ctx.pointer(0x00B0 | this.id.left, this.address);
+						this.ctx[0xA0] = (this.ctx[0xA0] & 0xFD) | ((this.address >> 15) & 2);
+					} else {
+						if(ic.left == ic.right && this.id.left == this.id.right) {
+							switch(ic) {
+							case 0xAA:
+								// DIV BCi,Ak
+								x = this.ctx.pointer(0x00B0 | this.id.left);
+								y = this.ctx[0x0A0 | this.id.left];
+								if(y == 0)
+									y = 256;
+								this.ctx.pointer(0x00B0 | this.id.left, Math.floor(x / y));
+								this.ctx[0x0A0 | this.id.left] = (x % y).low;
+								break;
+							case 0xBB:
+								x = this.ctx.pointer(0x00B0 | this.id.left);
+								y = x.high;
+								x = x.low;
+								y -= (y & 128) << 1;
+								x -= (x & 128) << 1;
+								x *= y;
+								this.ctx.pointer(0x00B0 | this.id.left, x >= 0 ? x : x + 65536);
+								break;
+							case 0xCC:
+								x = this.ctx.pointer(0x00B0 | this.id.left);
+								y = x.high;
+								x = x.low;
+								this.ctx.pointer(0x00B0 | this.id.left, x * y);
+								break;
+							}
+						} else {
+							if(this.id.left < this.id.right) {
+								// SWP Ri,Tk
+								x = this.ctx[(ic & 0xF0) | this.id.left];
+								y = this.ctx[(ic.right << 4) | this.id.right];
+								this.ctx[(ic & 0xF0) | this.id.left] = y;
+								this.ctx[(ic.right << 4) | this.id.right] = x;
+							} else {
+								// ??? Ri,Tk
+								return false
+							}
+						}
+					}
+					ip ++;
+				} else {
+					/*if(ic == 0xDD) {
+						// DBG
+						this.ctx.pointer(0x00B0, ip);
+						ip = (ic << 8);
+						this.dis_address = ip;
+					} else */{
+						// ARG R,T
+						this.ctx[0xAE] = ic;
+						ip ++;
+						hollow = !this.classic;
+					}
+				}
+			}
+			if(ic.left.isReg && ic.right == 0xE) {
+				if(this.ctx.state() & [2, 1, 8, 4][ic.left & 3]) {
+					// AE / BE / CE / DE / JA / JB / JC / JD
+					this.ctx.pointer(0x00B0, ip);
+					ip = this.address;
+					this.dis_address = ip;
+				} else
+					ip ++;
+			}
+			if(ic.left.isReg && ic.right == 0xF) {
+				if(this.prefixes > 0) {
+					if(!(this.ctx.state() & [2, 1, 8, 4][ic.left & 3])) {
+						// JAF / JBF / JCF / JDF / JNA / JNB / JNC / JND
+						this.ctx.pointer(0x00B0, ip);
+						ip = this.address;
+						this.dis_address = ip;
+					} else
+						ip ++;
+				} else {
+					// AF / BF / CF / DF | CMA / CMB / CMC / CMD
+					this.ctx[0xA0] ^= [2, 1, 8, 4][ic.left & 3];
+					ip ++;
+				}
+			}
+			if(ic >= 0xE0) {
+				// E000..FF99 | CALL 0xE000..0xFF99
+				this.ctx.pointer(this.process | 0x00B0, ip);
+				ip = (ic << 8) | this.id;
+				this.dis_address = ip;
+			}
+			this.ctx.pointer(0x00BE, ip);
+		} while(hollow);
+		return true;
+	}
+}
+
+var	cpu = new KOY();
+var	hDebugger;
+var	hDisplay;
+var	hScreen;
+var	hClock;
+var	hGraphic;
+var	hUserPad;
+var	hEmuDump;
+var	hEmuDis;
+var	hEmuCtx;
+var	hEmuLog;
+var	hUserLines;
+var	hUserDump;
+var	hFiles;
+var	hImageFiles;
+
+function showState(addr, is_edit) {
+	var	ip = isFinite(addr) ? addr : cpu.ctx.pointer(0x00BE);
+	var	ic;
+	i = 0;
+	do {
+		ic = cpu.ram[ip + i ++];
+	} while(ic > 0 && ic.left.isNum && ic.right.isNum);
+	hEmuDump.innerHTML = cpu.ram.toDump(ip, i).join("\r\n");
+	tmp = cpu.disassm(ip + 1);//.join("\r\n");
+	tmp = cpu.disassm(ip);//.join("\r\n");
+	if(!isFinite(addr) && isFinite(cpu.dis_points_lines[cpu.dis_pointer]) && !is_edit) {
+		hUserDump.scrollTop = cpu.dis_points_lines[cpu.dis_pointer] * (hUserDump.scrollHeight / (hUserDump.value.split(/\r?\n/).length));
+		var	line = cpu.dis_points_lines[ip];
+		var	lines = hUserDump.value.split(/\r?\n/);
+		hUserDump.focus();
+		hUserDump.selectionStart = lines.slice(0, line).join().length + 1;
+		hUserDump.selectionEnd = lines.slice(0, line + 1).join().length;
+	}
+	hEmuDis.innerHTML = tmp.content;
+	hEmuDis.className = "line" + tmp.active;
+	hEmuCtx.textContent = cpu.context();
+}
+
+HTMLTextAreaElement.prototype.insertAtCursor
+= function(szChar) {
+	//IE support
+	if(document.selection) {
+		this.focus();
+		sel = document.selection.createRange();
+		sel.text = szChar;
+	} else
+	//MOZILLA and others
+	if(this.selectionStart || this.selectionStart == '0') {
+		var	startPos	= this.selectionStart;
+		var	endPos		= this.selectionEnd;
+		this.value = this.value.substring(0, startPos)
+			+ szChar
+			+ this.value.substring(endPos, this.value.length);
+		this.selectionStart = startPos + szChar.length;
+		this.selectionEnd = this.selectionStart;
+	} else
+		this.value += szChar;
+}
+function onUserDump_RefreshState(e) {
+	window.localStorage.listingSelectAt = e.srcElement.selectionStart;
+	window.localStorage.listingSelectTo = e.srcElement.selectionEnd;
+	showState(cpu.dis_lines_points[e.srcElement.value.substr(0, e.srcElement.selectionStart).split(/\r?\n/).length - 1], true);
+	var row = e.srcElement.value.substr(0, e.srcElement.selectionStart).split(/\r?\n/).length;
+	var col = e.srcElement.value.substr(0, e.srcElement.selectionEnd).split(/\r?\n/).pop().length + 1;
+	hUserLines.scrollTop = e.srcElement.scrollTop;
+	hEmuLog.textContent = `${row}:${col}`;
+	return true;
+}
+function onUserDump_Input(e) {
+	var	text = ((e && e.srcElement) || hUserDump).value;
+	var	dump = text.split(".assm")[0];
+	var	assm = text.split(".assm")[1];
+	var	n = text.match(/\r?\n/g).length;
+	var	rows = [];
+	if(e)
+		window.localStorage.listing = ((e && e.srcElement) || hUserDump).value;
+	clearTimeout(hRefresh);
+	cpu.assembly(assm, dump.split(/\r?\n/).length - 1);
+	if(n != hUserLines.value.split(/\r?\n/).length) {
+		for(var i = 1; i <= n; ++ i)
+			rows.push(i);
+		hUserLines.textContent = rows.join("\r\n");
+		hUserLines.rows = hUserDump.rows;
+	}
+	hUserLines.scrollTop = ((e && e.srcElement) || hUserDump).scrollTop;
+}
+var	pVideo;
+
+function check_status(resp) {
+	if(!resp.ok) {
+		throw new Error(`HTTP ${resp.status} - ${resp.statusText}`);
+	}
+	return resp;
+}
+//
+function load_gist(el, id) {
+	var	f;
+	if(id)
+		f = fetch(linkTo.gist.host + id, {redirect: "follow"});
+	else
+		f = fetch(linkTo.gist.host + linkTo.gist.list, {redirect: "follow"});
+	console.log(`Load Gist...`);
+	f
+	.then(response =>
+		check_status(response)
+	)
+	.then(response => 
+		{
+			console.log(response);
+			return response.arrayBuffer()
+		}
+	)
+	.then((function(buffer)
+		{
+			var	text = String.fromCharCode.apply(null, new Uint8Array(buffer));
+			var	index = 1;
+			if(this.is_list) {
+				text.split(/\r?\n/)
+				.forEach(
+					function(items) {
+						var	item = items.split(/\t+/);
+						var	li = document.createElement("li");
+						li.addEventListener("click",
+							(function(e) {
+								load_gist(null, this.url);
+							}).bind({
+								url	:item[0]
+							})
+						);
+						li.textContent = index ++ + ". " + item[1];
+						li.className = "File";
+						hFiles.appendChild(li);
+					}
+				);
+			} else {
+				hUserDump.value = text;
+				onUserDump_Input();
+				cpu.ram.set(0).set(hUserDump.value.split(".assm")[0]);
+				cpu.assembly(hUserDump.value.split(".assm")[1], hUserDump.value.split(".assm")[0].split(/\r?\n/).length - 1);
+				cpu.reset();
+				showState();
+			}
+		})
+		.bind({
+			el	:el,
+			is_list	:id ? false : true
+		})
+	)
+	.catch(error => 
+		console.log(error)
+	);
+
+}
+//
+function load_assembly(url) {
+//url = "https://pastebin.com/raw/AqHSN1B9";
+	fetch(url, {
+		redirect: "follow"
+	})
+	.then(response =>
+		check_status(response)
+	)
+	.then(response => 
+		{
+			console.log(response);
+			return response.arrayBuffer()
+		}
+	)
+	.then(buffer =>
+		{
+			hUserDump.value = String.fromCharCode.apply(null, new Uint8Array( buffer));
+			onUserDump_Input();
+			cpu.ram.set(0).set(hUserDump.value.split(".assm")[0]);
+			cpu.assembly(hUserDump.value.split(".assm")[1], hUserDump.value.split(".assm")[0].split(/\r?\n/).length - 1);
+			cpu.reset();
+			showState();
+		}
+	)
+	.catch(error => 
+		console.log(error)
+	);
+}
+	//////////////////////////////////////////////////
+function cycle() {
+	setTimeout(cycle, 1000.0 / cpu.cps);
+	if((hUserPad.value.indexOf("$run ") > 0 || hUserPad.value.indexOf("$go") > 0)
+	&& (hUserPad.selectionEnd == hUserPad.selectionStart + 1)
+	&& (hUserPad.selectionEnd > hUserPad.value.replace(";$go ", ";$run ").indexOf("$run "))) {
+		while(cpu.step()) {}
+		showState(cpu.ctx.pointer(0x00B0));
+		showState(cpu.ctx.pointer(0x00B0));
+		if(hUserPad.value.indexOf(";$run") < 0)
+			hDebugger.style.display = "block";
+	} else
+		hDebugger.style.display = "block";
+}
+//////////////////////////////////////////////////////////
+function do_run(speed, let_go) {
+	var	tmp = hUserPad.value.replace(";$go ", ";$run ");
+	if(tmp.indexOf(";$run ") < 0) {
+		if(tmp.indexOf(";") < 0) {
+			tmp += ";$run Test for keyboard stroke...";
+		} else {
+			tmp = tmp.replace(";", ";$run ");
+		}
+		hUserPad.value = tmp;
+	}
+	if(let_go)
+		hDebugger.style.display = "block",
+		hUserPad.value = hUserPad.value.replace(";$run ", ";$go ");
+	else
+		hDebugger.style.display = "none",
+		hUserPad.value = hUserPad.value.replace(";$go ", ";$run ");
+	if(hUserPad.selectionEnd < tmp.indexOf("$run ")
+	|| hUserPad.selectionEnd >= hUserPad.value.length) {
+		hUserPad.selectionStart = tmp.indexOf("$run ") + 5;
+	}
+	hUserPad.selectionEnd = hUserPad.selectionStart + 1;
+	hUserPad.focus();
+	cpu.cps = speed;
+}
+//////////////////////////////////////////////////////////
+function do_console(e) {
+	var	text = hUserPad.value;
+	var	pos = text.indexOf(";");
+	var	assm;
+	if(pos > 0 && hUserPad.selectionStart < pos) {
+		assm = hUserPad.value.split(" ")[0];
+		if(assm.length == 4) {
+			cpu.assembly([
+				"\t.ORG\t0x" + assm,
+				hUserPad.value.substr(assm.length),
+				".DW\t0x0000",
+				".DW\t0x0000",
+				".DW\t0x0000"
+			].join("\r\n\t"));
+			showState(parseInt(assm, 16));
+			showState(parseInt(assm, 16));
+		}
+	} else {
+		if(tmp = text.match(/([0-9A-F]{2}):([0-9A-F]{2})/i)) {
+			cpu.ctx[parseInt(tmp[1], 16)] = parseInt(tmp[2], 16);
+			showState();
+			showState();
+		} else
+		if(tmp = text.match(/([0-9A-F]{2})([0-9A-F]{2})([0-9A-F])#([0-9A-F]{2})/i)) {
+			cpu.ctx[0xD9] = parseInt(tmp[1], 16);
+			cpu.ctx[0xD8] = parseInt(tmp[2], 16);
+			cpu.ctx[0xD0 + parseInt(tmp[3], 16)] = parseInt(tmp[4], 16);
+			showState();
+			showState();
+		}
+	}
+}
+//////////////////////////////////////////////////////////
+function main() {
+	hFiles = document.getElementById("Files");
+	hDebugger = document.getElementById("Debugger");
+	hUserPad = document.getElementById("UserPad");
+	hSprites = document.getElementById("Sprites");
+	hDisplay = document.getElementById("Display").getContext("2d");
+	hScreen = document.getElementById("Screen").getContext("2d");
+	hGraphic = hScreen.getImageData(0, 0, hScreen.canvas.width, hScreen.canvas.height);
+	hUserLines = document.getElementById("UserLines");
+	hImageFiles = document.getElementById("ImageFiles");
+	hEmuDump = document.getElementById("EmuDump");
+	hEmuDis = document.getElementById("EmuDis");
+	hEmuCtx = document.getElementById("EmuCtx");
+	hUserDump = document.getElementById("UserDump");
+	hEmuLog = document.getElementById("EmuLog");
+	hCaption = document.getElementById("Caption");
+	document.body.style.paddingTop = hCaption.offsetHeight;
+	document.body.style.visibility = "visible";
+	//
+	hImageFiles.addEventListener("change", function(e) {
+			if(e.srcElement.files[0]) {
+				var reader = new FileReader();
+				reader.onload = function() {
+					var dataUrl = reader.result;
+					var base64 = dataUrl.split(',')[1];
+					hSprites.style.height = "";
+					hSprites.style.width = "";
+					hSprites.src = dataUrl;
+				};
+				reader.readAsDataURL(e.srcElement.files[0]);
+				e.srcElement.style.display = "none";
+			}
+		}
+	);
+	hUserPad.addEventListener("focus", function(e) {
+/*			if(hClock)
+				clearInterval(hClock);
+			hClock = setInterval("while(cpu.step()) {} showState();", 1000 / cpu.cps);
+			hDebugger.style.display = "none";*/
+		}
+	);
+	hUserPad.addEventListener("blur", function(e) {
+/*			if(hClock)
+				clearInterval(hClock);
+			hClock = null;
+			hDebugger.style.display = "block";*/
+		}
+	);
+	hSprites.src = hSprites.src;
+	hSprites.addEventListener("load",
+		function(e) {
+			e.srcElement.style.display = "inline";
+			pVideo = cpu.prepareImage(e.srcElement);
+			setInterval("cpu.render(hScreen, pVideo)" , 40);
+		}
+	);
+	hUserDump.addEventListener("input", onUserDump_Input);
+	hUserDump.addEventListener("scroll",
+		function(e) {
+			var	el = e.srcElement;
+			hUserLines.scrollTop = el.scrollTop;
+		}
+	);
+	hUserDump.addEventListener("mousedown", onUserDump_RefreshState);
+	hUserDump.addEventListener("keyup", onUserDump_RefreshState);
+	hUserDump.addEventListener("keydown",
+		function(e) {
+			var keyCode = e.keyCode || e.which;
+			if(keyCode === 0x09) {
+				document.execCommand('insertText', false, '\t'.repeat(1));
+				e.preventDefault();
+			}
+			onUserDump_RefreshState(e);
+		}
+	);
+	hUserPad.addEventListener("keydown",
+		function(e) {
+			var keyCode = e.keyCode || e.which;
+			if(keyCode === 0x09) {
+				document.execCommand('insertText', false, '\t'.repeat(1));
+				e.preventDefault();
+			} else
+			if(keyCode == 0x0D) {
+				cpu.step();
+				showState(undefined, true);
+			}
+		}
+	);
+	hUserPad.addEventListener("input", do_console);
+	cpu.init();
+	if(window.location.href.match(/classic/i))
+		cpu.classic = true;
+	if(tmp = window.location.href.match(/gist=(http.*\.asm)/))
+		load_assembly(tmp[1]);
+	else
+	if(window.localStorage.listing && window.localStorage.listing.indexOf("20220627") > 0) {
+		var	listing = window.localStorage.listing;
+		if(listing.indexOf("20220627") > 0) {
+			onUserDump_Input();
+			hUserDump.value = listing;
+			hUserDump.selectionStart = window.localStorage.listingSelectAt;
+			hUserDump.selectionEnd = window.localStorage.listingSelectTo;
+			hUserDump.focus();
+			hUserLines.scrollTop = hUserDump.scrollTop;
+		}
+	}/* else
+	if(!window.location.href.match(/debug/))
+		load_assembly("https://gist.githubusercontent.com/Alikberov/0a9ed1f8bca71b6e0bc957485497311b/raw/koy-mac-slalom.asm");*/
+	load_gist(hFiles);
+	cpu.ram.set(0).set(hUserDump.value.split(".assm")[0]);
+	cpu.assembly(hUserDump.value.split(".assm")[1], hUserDump.value.split(".assm")[0].split(/\r?\n/).length - 1);
+	cpu.reset();
+	showState();
+	onUserDump_Input();
+	tmp = window.location.href.match(/autorun-?(\d*)(\.)?/i)
+	if(tmp) {
+		do_run(tmp[1] || 1, tmp[2]);
+		clearTimeout(hRefresh);
+	}
+	cycle();
+}
+
+setTimeout(main, 100);
+</script>
+<style>
+body
+{
+	visibility	:hidden;
+	background-color:silver;
+	padding-bottom	:0px;
+	margin-bottom	:0px;
+	padding-right	:0px;
+	margin-right	:0px;
+	padding-left	:0px;
+	margin-left	:0px;
+	padding-top	:0px;
+	margin-top	:0px;
+}
+hr
+{
+	padding-bottom	:0px;
+	margin-bottom	:0px;
+	padding-right	:0px;
+	margin-right	:0px;
+	padding-left	:0px;
+	margin-left	:0px;
+	padding-top	:0px;
+	margin-top	:0px;
+}
+input#UserPad
+{
+	width		:100%;
+}
+textarea#UserLines {
+	border-bottom	:thin ButtonFace inset;
+	border-left	:thin ButtonFace inset;
+	border-top	:thin ButtonFace inset;
+	border-right	:thin green dashed;
+	display		:inline-block;
+	font-family	:Courier New;
+	font-size	:12px;
+	white-space	:pre;
+	font-weight	:normal;
+	margin		:0px 0px 0px 0px;
+	padding-top	:0px;
+	padding-right	:0px;
+	color		:green;
+	background-color:lightgreen;
+	overflow	:hidden;
+	resize		:none;
+	text-align	:right;
+}
+pre#EmuLog
+{
+	background-color:Menu;
+	color		:MenuText;
+	border		:thin ButtonFace inset;
+	display		:inline-block;
+	font-family	:Courier New;
+	font-size	:12px;
+	margin		:0px 0px 0px 0px;
+	resize		:none;
+	padding		:0px 0px 0px 0px;
+	display:inline-block;
+	position:fixed;
+	right:0%;
+	text-align:right;
+}
+textarea#UserDump
+{
+	background-color:lightgreen;
+	color		:green;
+	border-left	:none;
+	border-top	:thin ButtonFace inset;
+	border-right	:thin ButtonFace inset;
+	border-bottom	:thin ButtonFace inset;
+	display		:inline-block;
+	font-family	:Courier New;
+	font-size	:12px;
+	margin-left	:0px;
+	resize		:none;
+	padding		:0px 0px 0px 0px;
+}
+textarea#UserDump:focus,
+textarea#UserLines:focus
+{
+	outline		:none;
+}
+pre#EmuDis, pre#EmuDump,
+pre#EmuCtx
+{
+	border		:thin ButtonFace inset;
+	display		:block;
+	font-family	:Courier New;
+	font-size	:12px;
+}
+span.ActiveByte
+{
+	color		:white;
+	font-weight	:bolder;
+}
+pre#EmuDis {
+	background-color:darkgreen;
+	color		:lightgreen;
+	font-family	:Courier New;
+	font-size	:12px;
+}
+pre#EmuDis.line0 > span:nth-child(1),
+pre#EmuDis.line1 > span:nth-child(2),
+pre#EmuDis.line2 > span:nth-child(3),
+pre#EmuDis.line3 > span:nth-child(4),
+pre#EmuDis.line4 > span:nth-child(5),
+pre#EmuDis.line5 > span:nth-child(6),
+pre#EmuDis.line6 > span:nth-child(7),
+pre#EmuDis.line7 > span:nth-child(8),
+pre#EmuDis.line8 > span:nth-child(9),
+pre#EmuDis.line9 > span:nth-child(10),
+pre#EmuDis.line10 > span:nth-child(11),
+pre#EmuDis.line11 > span:nth-child(12),
+pre#EmuDis.line12 > span:nth-child(13),
+pre#EmuDis.line13 > span:nth-child(14),
+pre#EmuDis.line14 > span:nth-child(15),
+pre#EmuDis.line15 > span:nth-child(16) {
+	background-color:green;
+}
+tr
+{
+	border-top	:none;
+	padding-top	:0px;
+	margin-top	:0px;
+}
+table#Caption
+{
+	border		:none;
+	z-index		:1000;
+}
+caption-bar
+{
+	background-color:red;/*Menu;*/
+	color		:MenuText;
+	display		:block;
+}
+label
+{
+	background-color:Menu;
+	color		:MenuText;
+	display		:block;
+}
+label input#CaptionMenu
+{
+	display		:none;
+}
+label input#CaptionMenu ~ menu li menu ul::before
+{
+	color		:HighlightText;
+	left		:-1em;
+	position	:absolute;
+	content		:'►'
+}
+label input#CaptionMenu ~ menu
+{
+	background-color:inherit;
+	color		:inherit;
+	border		:none;
+	padding		:1px 9px 1px 9px;
+	margin		:0 0 0 0;
+	display		:inline-block;
+}
+label input#CaptionMenu ~ menu:hover
+{
+	border		:1px outset;
+	padding		:0px 8px 0px 8px;
+}
+label input#CaptionMenu:checked ~ menu:hover
+{
+	border		:1px inset;
+	padding		:0px 8px 0px 8px;
+}
+label input#CaptionMenu:checked ~ menu:active
+{
+	border		:1px inset;
+}
+label input#CaptionMenu ~ menu ol,
+label input#CaptionMenu ~ menu ul
+{
+	background-color:inherit;
+	color		:inherit;
+	position	:absolute;
+	border		:1px outset;
+	display		:none;
+	list-style-type	:none;
+	list-style-type		:none;
+	list-style-position	:outside;
+}
+label input#CaptionMenu ~ li
+{
+	background-color:inherit;
+	color		:inherit;
+}
+label input#CaptionMenu:checked ~ menu:hover ol,
+label input#CaptionMenu:checked ~ menu:hover ul
+{
+	background-color:inherit;
+	color		:inherit;
+	display		:block;
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+}
+label input#CaptionMenu:checked ~ menu:hover li:hover
+{
+	background-color:Highlight;
+	color		:HighlightText;
+	width		:100%;
+}
+label input#CaptionMenu:checked ~ menu:hover li menu
+{
+	padding		:0px 0px 0px 0px;
+	margin		:0px 0px 0px 0px;
+	width		:100%;
+}
+label input#CaptionMenu:checked ~ menu:hover li menu ol,
+label input#CaptionMenu:checked ~ menu:hover li menu ul
+{
+	left		:100%;
+	background-color:Menu;
+	color		:MenuText;
+	display		:none;
+	width		:auto;
+}
+label input#CaptionMenu:checked ~ menu:hover li:hover menu ol,
+label input#CaptionMenu:checked ~ menu:hover li:hover menu ul
+{
+	background-color:Menu;
+	color		:MenuText;
+	display		:inline-block;
+}
+label input#CaptionMenu:checked ~ menu:hover li:hover menu ol li:hover,
+label input#CaptionMenu:checked ~ menu:hover li:hover menu ul li:hover
+{
+	background-color:Highlight;
+	color		:HighlightText;
+	display		:inline-block;
+}
+li.File
+{
+	white-space	:nowrap;
+}
+
+table#Caption
+{
+	width		:100%;
+	position	:fixed;
+	left		:0px;
+	top		:0px;
+	background-color:ActiveCaption;
+	color		:CaptionText;
+}
+table#Caption tr td:nth-child(2)
+{
+	font-family	:Courier New;
+	font-weight	:bold;
+	width		:100%;
+}
+table#Caption tr td:nth-child(3)
+{
+	white-space	:nowrap;
+}
+table#Caption tr td:nth-child(3) button
+{
+	font-family	:Marlett;
+}
+input#ImageFiles
+{
+	display		:none;
+}
+canvas#Display
+{
+	position	:absolute;
+}
+span.CPU_Group_A {
+	background-color: #772;	<!--	ALU		- AND/XOR/CMP	772-->
+}
+span.CPU_Group_B {
+	background-color: #764;	<!--	Branching	- Ccnd/Jcnd	752-->
+}
+span.CPU_Group_C {
+	background-color: #888;	<!--	Controls	- HLT/NOP	888-->
+}
+span.CPU_Group_D {
+	background-color: #663;	<!--	Dubbed/Pair	- INC/DEC	552-->
+}
+span.CPU_Group_E {
+	background-color: #363;	<!--	Xchg/Stack	- POP/PUSH	262-->
+}
+span.CPU_Group_F {
+	background-color: #367;	<!--	Flip-Flop	- MOV		257-->
+}
+span.CPU_Group_X {
+	background-color: #437;	<!--	X-Code		- ---		437-->
+}
+span.CPU_Group_Z {
+	background-color: #444;	<!--	X-Code		- ---		437-->
+}
+div.About
+{
+	display		:none;
+	background-color:ButtonFace;
+	opacity		:90%;
+	position	:fixed;
+	bottom		:10%;
+	right		:10%;
+	left		:10%;
+	top		:10%;
+}
+div.About h1
+{
+	background-color:ActiveCaption;
+	border		:thick inset InActiveCaption;
+	margin		:0px 0px 0px 0px;
+	text-align	:center;
+}
+</style>
+</head>
+<body>
+<div id=Info class=About onclick='this.style.display="none"'><h1>Koyaanisqatsi::Info</h1><hr />
+KISC - is Koyaanisqatsi Instruction Set Computing<hr />
+CPS - Cycles Per Second: Programm cycle until HALT<br />
+Classic Mode: Native Koyaanisqatsi operating<br />
+DF - Duplex Flag: Alias for ZF, when compare identical operands<br />
+Do n CPS: Run until end of terminal line</div>
+<div id=Help class=About onclick='this.style.display="none"'><h1>Koyaanisqatsi::Help</h1><hr />
+<ul>
+<li><a href='https://gistpreview.github.io/?cff9df3bc1901d33f5c055682721240a#gist=https://gist.githubusercontent.com/Alikberov/0a9ed1f8bca71b6e0bc957485497311b/raw/koy-mac-slalom.asm'>Autoload listing</a></li>
+<li><a href='https://gistpreview.github.io/?cff9df3bc1901d33f5c055682721240a#autorun-gist=https://gist.githubusercontent.com/Alikberov/0a9ed1f8bca71b6e0bc957485497311b/raw/koy-mac-slalom.asm'>Autorun listing</a></li>
+<li><a href='https://gistpreview.github.io/?cff9df3bc1901d33f5c055682721240a#classic-gist=https://gist.githubusercontent.com/Alikberov/0a9ed1f8bca71b6e0bc957485497311b/raw/koy-mac-slalom.asm'>Classic mnemonic</a></li>
+<li><a href='https://gistpreview.github.io/?cff9df3bc1901d33f5c055682721240a#autorun-classic-gist=https://gist.githubusercontent.com/Alikberov/0a9ed1f8bca71b6e0bc957485497311b/raw/koy-mac-slalom.asm'>Autorun listing with classic</a></li>
+</ul>
+Context - Set
+<button onclick='hUserPad.value = "B5:3F"; do_console()'>B5=3F</button>
+<button onclick='hUserPad.value = "B5:CD"; do_console()'>B5=CD</button>
+<button onclick='hUserPad.value = "C6:5B"; do_console()'>C6=5B</button>
+<button onclick='hUserPad.value = "A0:01"; do_console()'>A0=01</button>
+<button onclick='hUserPad.value = "A0:02"; do_console()'>A0=02</button>
+<button onclick='hUserPad.value = "A0:08"; do_console()'>A0=08</button><br />
+Device#CB:Part#00 - Set
+CB:00.1=<button onclick='hUserPad.value = "CB001#3F"; do_console()'>3F</button>
+<button onclick='hUserPad.value = "CB001#06"; do_console()'>06</button>
+<button onclick='hUserPad.value = "CB001#5B"; do_console()'>5B</button>
+<button onclick='hUserPad.value = "CB001#4F"; do_console()'>4F</button>
+<button onclick='hUserPad.value = "CB001#66"; do_console()'>66</button>
+<button onclick='hUserPad.value = "CB001#6D"; do_console()'>6D</button>
+<button onclick='hUserPad.value = "CB001#7D"; do_console()'>7D</button>
+<button onclick='hUserPad.value = "CB001#07"; do_console()'>07</button>
+<button onclick='hUserPad.value = "CB001#7F"; do_console()'>7F</button>
+<button onclick='hUserPad.value = "CB001#6F"; do_console()'>6F</button><br />
+Device#CD:Part#00 - Set
+CD:12.3=<button onclick='hUserPad.value = "CD123#00"; do_console()'>00</button>
+<button onclick='hUserPad.value = "CD123#55"; do_console()'>55</button>
+<button onclick='hUserPad.value = "CD123#FF"; do_console()'>FF</button>
+CD:12.5=<button onclick='hUserPad.value = "CD125#AA"; do_console()'>AA</button>
+<button onclick='hUserPad.value = "CD125#55"; do_console()'>55</button>
+<button onclick='hUserPad.value = "CD125#FF"; do_console()'>FF</button>
+CD:39.1=<button onclick='hUserPad.value = "CD391#AA"; do_console()'>AA</button>
+<button onclick='hUserPad.value = "CD391#55"; do_console()'>55</button>
+<button onclick='hUserPad.value = "CD391#FF"; do_console()'>FF</button><br />
+</div>
+<div id=About class=About onclick='this.style.display="none"'><h1>Koyaanisqatsi::About</h1><hr />
+KISC - is Koyaanisqatsi Instruction Set Computing</div>
+<table id=Caption cellPadding=0 cellSpacing=0 border=0>
+<tr>
+<td><blink><b style=color:red>K</b></blink></td>
+<td>oy-Machine Emulator v1.02</td>
+<td><button>_</button><button>&#x25A1;</button><button>X</button></td>
+<!--td><button>0</button><button>2</button><button>r</button></td-->
+</tr>
+<tr>
+<td colSpan=3>
+<label id=MenuBar>
+<input id=CaptionMenu type=checkbox />
+<menu>File<ul>
+<li onclick='window.localStorage.clear(); window.location=""'>New</li>
+<li onclick='return false'><menu>Load<ol id=Files>
+</ol></menu></li>
+<li onclick='hImageFiles.click()'>Load local</li>
+<hr /></li>
+<li>… … …</li>
+</ul>
+</menu><menu>Edit<ul>
+<li onclick='hUserDump.focus(); document.execCommand("cut", false)'>Cut</li>
+<li onclick='hUserDump.focus(); document.execCommand("copy", false)'>Copy</li>
+<li onclick='hUserDump.focus(); document.execCommand("selectAll", false)'>Select all</li>
+</ul>
+</menu><menu>Debug<ul>
+<li onclick='cpu.step(); showState(); return false' accesskey=s>Step</li>
+<li onclick='while(cpu.step()) {} showState(); return false'>Do</li>
+</ul>
+</menu><menu>CPU<ul>
+<li onclick='cpu.reset(); showState()' accesskey=r>Reset</li>
+<li onclick='cpu.classic = !cpu.classic; showState(); return false' accesskey=c>Classic</li>
+<li onclick='do_run(1)'>Run 1 CPS</li>
+<li onclick='do_run(10)'>Run 10 CPS</li>
+<li onclick='do_run(100)'>Run 100 CPS</li>
+<li onclick='do_run(1, true)'>Do 1 CPS</li>
+<li onclick='do_run(10, true)'>Do 10 CPS</li>
+<li onclick='do_run(100, true)'>Do 100 CPS</li>
+</ul>
+</menu><menu>View<ul>
+<li onclick='return false'><menu>Render<ul>
+<li onclick='cpu.render.noise = 0; return false'>Clean</li>
+<li onclick='cpu.render.noise = 25; return false'>Noised</li>
+<li onclick='cpu.render.noise = 50; return false'>Dirty</li>
+</ul></menu></li>
+<li onclick='hEmuCtx.style.display = hEmuCtx.style.display != "none" ? "none" : "block"; return false'>Context</li>
+<li onclick='hEmuDis.style.display = hEmuDis.style.display != "none" ? "none" : "block"; return false'>Disassembly</li>
+<li onclick='hUserLines.style.display = hUserDump.style.display = hUserDump.style.display != "none" ? "none" : "block"; return false'>Listing</li>
+<li onclick='hEmuDump.style.display = hEmuDump.style.display != "none" ? "none" : "block"; return false'>Memory</li>
+</ul></menu><menu>Help<ul>
+<li onclick='document.getElementById("Info").style.display="block"'>Info</li>
+<li onclick='document.getElementById("Help").style.display="block"'>Help</li>
+<li onclick='document.getElementById("About").style.display="block"'>About</li>
+<li><a href='https://gistpreview.github.io/?9a3cb1276bf066814f9a551a74052ff7' target=_blank>LCD-Editor</a></li>
+<li><a href='https://github.com/Alikberov/Koyaanisqatsi'>GitHub</a></li>
+</ul></menu><pre id=EmuLog>Status</pre></label>
+</td>
+</tr>
+</table>
+<span id=State></span>
+<input id=UserPad accesskey=k type=text placeholder='User input Terminal' value=';0000 LEA D1,[D1+2D2+3D3+4D4+5D5] ; Uncomment this' />
+<hr />
+<table id=Debugger cellspacing=0 cellpadding=0>
+<tr>
+<td>
+<pre id=EmuCtx>
+</pre>
+</td>
+<td>
+<pre id=EmuDis>
+</pre>
+</td>
+<td><textarea id=UserLines cols=4 disabled></textarea></td>
+<td><textarea id=UserDump accesskey=a rows=16 cols=56>
+.assm				; revision 20220627
+	.DBG_BYTES	4,2	; bytes per line
+	.DBG_CHARS	39,45	; letters per line
+	;;;;;;;;;;;;;;;;;;;;;;;;;
+	.ORG	0x0000
+Start:
+	LEA	D0,[D1+2D2+3D3]
+	LEA	D0,[D2+.test]
+	ADD	D0,[D4+5D5],D5
+.test:	LEX	A1,[234#D5+6D6+7D7+8],A1
+	ADD	A1,A8
+</textarea>
+<textarea style=display:none>
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; (C) Alikberov - 2021.07.09	;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.IMGUR	OysxF9E.png	; Load LCD-Sprites
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+CALL	.DEFW		0xFE	; CALL LABEL
+RET	.DEF		0xE9	; RETURN
+JC	.DEFW		0xEC	; JUMP IF CARRY
+JNC	.DEFW		0xED	; JUMP IF NO CARRY
+JZ	.DEFW		0xEE	; JUMP IF ZERO
+JNZ	.DEFW		0xEF	; JUMP IF NO ZERO
+SHR	.DEF		0xF9	; SHIFT RIGHT
+LDA	.DEFB		0xFA	; LOAD A
+LDB	.DEFB		0xFB	; LOAD B
+LDC	.DEFB		0xFC	; LOAD C
+LOAD	.DEFW		0xFD	; LOAD BC
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+STACK	.EQU	0x00A0		; STACK BASE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; CALL ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	CALL
+	OR	A9,A9		; CLC
+	ADD	BC4,BC9		; ADC SP,-1
+	CMC			; CMC
+	ADD	BC4,BC9		; ADC SP,-1
+	MOV	C8,[BC0+1]
+	MOV	B8,[BC0+2]
+	ADD	BC0,BC1
+	ADD	BC0,BC1
+	MOV	[BC4+0],C0	; MOV [SP],C0
+	MOV	[BC4+1],B0	; MOV [SP+1],B0
+	JCF	BC8+0
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; RET
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	RET
+	MOV	B0,[BC4+1]
+	MOV	C0,[BC4+0]
+	OR	C0,C0
+	ADD	BC4,BC1
+	ADD	BC4,BC1
+	CMC
+	JCE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; JC ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	JC
+	JCF	BC0+3	; Is Carry - False?
+	MOV	A0,[BC0+1]
+	MOV	B0,[BC0+2]
+	MOV	C0,A0
+	JCE
+	CMC
+	JCE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; JNC ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	JNC
+	JCE	BC0+3	; Is Carry - Exist?
+	MOV	A0,[BC0+1]
+	MOV	B0,[BC0+2]
+	MOV	C0,A0
+	JCE
+	CMC
+	JCE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; JZ ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	JZ
+	JDF	BC0+3	; Is Duplex - False?
+	MOV	A0,[BC0+1]
+	MOV	B0,[BC0+2]
+	MOV	C0,A0
+	JDE
+	CMD
+	JDE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; JNZ ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	JNZ
+	JDE	BC0+3	; Is Duplex - Exist?
+	MOV	A0,[BC0+1]
+	MOV	B0,[BC0+2]
+	MOV	C0,A0
+	JDE
+	CMD
+	JDE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; SHR
+; SHIFT RIGHT A9
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	SHR
+	ADD	A9,A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	ADD	A9
+	JAE	BC0+1
+	JAF	BC0+1
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; LOAD A,DATA
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	LDA
+	MOV	A,[BC0+1]
+	JAE	BC0+2
+	JAF	BC0+2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; LOAD B,DATA
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	LDB
+	MOV	B,[BC0+1]
+	JAE	BC0+2
+	JAF	BC0+2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; LOAD C,DATA
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	LDC
+	MOV	C,[BC0+1]
+	JAE	BC0+2
+	JAF	BC0+2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; LOAD BC,ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.DEF	LOAD
+	MOV	C,[BC0+1]
+	MOV	B,[BC0+2]
+	JAE	BC0+3
+	JAF	BC0+3
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; BC1 = +1
+; BC9 = -1
+; BC6 = GLASS DATA
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+STACK	.EQU	0x1000
+	.ORG	0
+TETRIS
+	OR	C0,B0
+	JZ	TETRINI
+	CALL	SCORED
+	CALL	GLASSED
+	CALL	CHECK
+	HALT
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+TETRINI
+	LOAD	BC1,1		; BC1 = +1
+	LOAD	BC9,65535	; BC9 = -1
+	LOAD	BC6,GLASS
+	LOAD	BC5,NUMBERS
+	LOAD	BC4,STACK
+	LDA	A9,0xCB
+	MOV	D9,A9
+	HALT
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SCORED
+	LOAD	BC8,0
+	LDA	A5,10
+	MOV	A9,[BC6+65535]
+.DIV10	ARG	A,A
+	MOV	A8,A9
+	OR	A9,A9
+	SUB	A5
+	JC	.DIV1
+	ADD	BC8,BC1
+	JNZ	.DIV10
+.DIV1	MOV	D0,[BC5+0+A8]
+	MOV	D1,[BC5+0+C8]
+	MOV	D2,[BC6+0]
+	MOV	D3,[BC6+1]
+	MOV	D4,[BC6+2]
+	MOV	D5,[BC6+3]
+	MOV	D6,[BC6+4]
+	MOV	D7,[BC6+5]
+	RET
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+CHECK
+	LDA	A9,5
+	MOV	C7,C6
+	MOV	B7,B6
+.LOOP
+	MOV	A8,[BC7+0]
+	OR	A8
+	SUB	C9
+	JZ	.ERASE
+	CMC
+	ADD	BC7,BC1
+	SUB	A9,C1
+	JNC	.LOOP
+	RET
+.ERASE
+	MOV	A8,[BC7+1]
+	MOV	[BC7+0],A8
+	OR	A9,A9
+	ADD	BC7,BC1
+	SUB	C1
+	JNZ	.ERASE
+	HALT
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+GLASSED
+	RET
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SCORE	.DB	25
+GLASS	.DB	0xFD
+	.DB	0xFF
+	.DB	0xCF
+	.DB	0xE1
+	.DB	0x00
+	.DB	0x00
+NUMBERS	.DB	0x7E		; 0
+	.DB	0x0C		; 1
+	.DB	0xB6		; 2
+	.DB	0x9E		; 3
+	.DB	0xCC		; 4
+	.DB	0xDA		; 5
+	.DB	0xFA		; 6
+	.DB	0x0E		; 7
+	.DB	0xFE		; 8
+	.DB	0xDE		; 9
+</textarea>
+<!--
+____ .0 .1 .2 .3 .4 .5 .6 .7 .8 .9 .A .B .C .D .E .F
+0000 B4 C4 EE A0 00 B1 C1 EE 01 00 B9 C9 EE FF FF B5
+0010 C5 EE C0 C0 D9 DC 5F EC 'H 'E 'L 'L 'O 20 'W 'O
+0020 'R 'L 'D 21 00
+EC00 BB B5 0F CC C5 0F 10 EC 51 CE CF 51 CE
+EC10 AA A9 9E 09 DD 9E 51 DD 50 9D 02 DE D0 DA 9F DF
+EC20 DE
+EE00 CC 01 8F BB 02 8F 03 CE 03 CF
+.assm-->
+</td>
+<td><pre id=EmuDump>
+</pre>
+</td>
+</tr>
+</table>
+<hr />
+<canvas id=Display width=128 height=128 style=zoom:3></canvas>
+<canvas id=Screen width=128 height=128></canvas>
+<img id=Sprites style=display:none crossorigin='' src5='https://i.imgur.com/OysxF9E.png' src4='https://i.imgur.com/kUeYpDl.png' src3='https://i.imgur.com/AKvx7ER.png' src2='https://i.imgur.com/xPIE14m.png' src1='https://i.imgur.com/MQ1x2Bf.png' />
+<input id=ImageFiles type=file accesskey=f accept='image/png' />
+</body>
