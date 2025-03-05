@@ -1,0 +1,79 @@
+<html>
+
+<head>
+<script>
+const	size = 32;
+let	cnv;
+let	ctx;
+let	ink = "brown red orange white yellow green cyan blue magenta".split(/\s+/);
+let	paper = "white black".split(/\s+/);
+
+function draw() {
+	ctx.globalAlpha = 1 / 128;
+	ctx.fillStyle = paper[0];
+	ctx.fillRect(0, 0, cnv.width, cnv.height);
+	setTimeout(draw, 100);
+}
+
+function mouseDown(e) {
+	if(e.button == 2) {
+		paper.push(paper.shift());
+		ctx.globalAlpha = 1;
+		ctx.fillStyle = paper[0];
+		ctx.fillRect(0, 0, cnv.width, cnv.height);
+	} else
+		ink.push(ink.shift());
+	e.preventDefault();
+}
+
+function mouseMove(e) {
+	const [x, y] = [e.offsetX, e.offsetY];
+	ctx.globalAlpha = 1;
+	ctx.fillStyle = ink[0];
+	ctx.fillRect(x - size / 2, y - size / 2, size, size)
+}
+
+function keyDown(e) {
+	ctx.globalAlpha = 1;
+	ctx.fillStyle = ink[0];
+	ctx.font = ctx.font.replace(/\d+/, "72");
+	ctx.fillText(e.code, cnv.width / 2, cnv.height / 2);
+	if(e.key.match(/F\d+|Tab/i)) {
+		e.preventDefault();
+	}
+}
+
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else if (document.exitFullscreen) {
+    document.exitFullscreen();
+  }
+}
+
+function main() {
+	cnv = document.querySelector("canvas");
+	cnv.addEventListener("mousemove", mouseMove);
+	cnv.addEventListener("mousedown", mouseDown);
+	cnv.addEventListener("wheel", mouseDown);
+	cnv.addEventListener("contextmenu", (e) => e.preventDefault());
+	cnv.width = screen.width;
+	cnv.height = screen.height;
+	ctx = cnv.getContext("2d");
+	document.body.addEventListener("keydown", keyDown);
+	document.body.addEventListener("keyup", keyDown);
+	document.body.addEventListener("fullscreenchange", (event) => {alert(9)});
+	draw();
+}
+</script>
+
+<style>
+body {
+	margin	:0 0 0 0;
+}
+</style>
+</head>
+
+<body onload='main()'>
+<canvas></canvas>
+</body>
