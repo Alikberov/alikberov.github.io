@@ -1,0 +1,465 @@
+<html><head>
+<title>Koyaanisqatsi Instructions Encoder</title>
+<style>
+body {
+	font-size:2em;
+}
+input {
+	font-size:1em;
+	width:90%;
+}
+</style>
+
+<script>
+let	logs = [];
+/*
+1. Инициализация:
+   - масштаб[0..9] = 0 (массив коэффициентов для регистров D0-D9)
+   - уровень = 0
+   - биты = 0 (максимальная степень двойки)
+   - итог = [] (результирующая последовательность)
+   - всего = [] (стек уровней)
+
+2. Разбиение вектора на части:
+   - Используем регулярное выражение для выделения компонентов вида:
+     - Базовый регистр (#Dn)
+     - Компоненты с регистрами (±kDn)
+
+3. Обработка базового регистра:
+   - Извлечь номер базового регистра (например, #D5 → 5)
+   - Добавить базу в результат первым элементом
+
+4. Заполнение масштабов:
+   - Для каждой найденной компоненты вида +kDn:
+     - Извлечь номер регистра (n)
+     - Добавить коэффициент k (или 1, если k не указан) в масштаб[n]
+
+5. Определение максимальной степени двойки:
+   - Для каждого регистра находим старший бит коэффициента
+   - Сохраняем максимальную найденную степень (биты)
+
+6. Генерация последовательности:
+   - Цикл от старшего бита (биты) до 0:
+     a. Проверяем наличие бита в текущей позиции для всех регистров
+     b. Если бит установлен:
+        - Добавляем регистр в текущий уровень
+        - Вычитаем 2^бит из его коэффициента
+     c. Формируем последовательность регистров с учетом вложенности
+     d. Обновляем стек уровней
+
+7. Возврат результата:
+   - Объединяем итоговый массив в строку через пробелы
+*/
+
+function разбор_вектора(вектор) {
+	let	масштаб = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	let	уровень = 0;
+	let	биты = 0;
+	let	разряд;
+	let	ключи;
+	let	итог = [];
+	let	код, часть, части;
+	let	было = 0, есть, сейчас, всего = [];
+	let	база;
+	let	индексы = new Set();
+	let	парный;
+	//
+	части = вектор.match(/(D\d)|(\d)|(\+\d*\*?D\d)|([-+]?\d+)/gi);
+	if(части) {
+		база = Number(части[0].substr(-1));
+		for(часть of части) {
+			if(часть.match(/\+\d*D\d/i)) {
+				масштаб[+(часть.substr(-1))] += isFinite(parseInt(часть.substr(1))) ? parseInt(часть.substr(1)) : 1;
+				биты |= масштаб[+(часть.substr(-1))];
+				индексы.add(часть.substr(-1));
+			}
+		}
+		разряд = 1 << Math.floor(Math.log2(биты));
+		//всего.push(база);
+		итог.push(база);
+		while(разряд > 0) {
+			ключи = new Set();//[база]);
+			есть = 1 << база;
+			парный = 0;
+			for(let индекс of индексы) {
+				if(масштаб[индекс] & разряд) {
+					итог.push(`${индекс}`);
+					ключи.add(индекс);
+					есть |= разряд;
+					парный |= (масштаб[индекс] & (масштаб[индекс] << 1)) & разряд;
+				}
+			}
+			console.log(ключи);
+			//if((было & есть) == 0 || ключи.size == 0)
+			if(!парный && разряд > 1)
+				итог.push(`${база}`);
+			разряд >>= 1;
+			было = есть;
+		}
+	}
+	return итог.join(" ");
+}
+
+function разбор_вектора_1(вектор) {
+	let	масштаб = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	let	уровень = 0;
+	let	биты = 0;
+	let	итог = [];
+	let	код, часть, части;
+	let	было = 0, есть, сейчас, всего = [];
+	let	база;
+	//
+	части = вектор.match(/(D\d)|(\d)|(\+\d*\*?D\d)|([-+]?\d+)/gi);
+	if(части) {
+		база = Number(части[0].substr(-1));
+		for(часть of части) {
+			if(часть.match(/\+\d*D\d/i)) {
+				масштаб[+(часть.substr(-1))] += isFinite(parseInt(часть.substr(1))) ? parseInt(часть.substr(1)) : 1;
+				биты |= масштаб[+(часть.substr(-1))];
+			}
+		}
+		/*for(let i = 0; i <= 9; ++ i) {
+			let j = -1;
+			while((масштаб[i] >> (j + 1)) > 0)
+				++ j;
+			if(биты < j)
+				биты = j;
+		}*/
+		биты = Math.floor(Math.log2(биты));
+		всего.push(база);
+		while(биты >= 0) {
+			есть = 0;
+			сейчас = [];
+			let i = всего.pop();
+			код = [];
+			if((масштаб[i] >> биты) > 0) {
+				масштаб[i] -= 1 << биты;
+				есть |= 1 << биты;
+				код.push(i);
+				if(биты > 0 && ((масштаб[i] >> (биты - 1)) & 1) > 0)
+					сейчас.push(String(i));
+			}
+			for(i = 0; i <= 9; ++ i) {
+				if((масштаб[i] >> биты) > 0) {
+					есть |= 1 << i;
+					код.push(String(i));
+					if(биты > 0 && ((масштаб[i] >> (биты - 1)) & 1) > 0)
+						сейчас.push(i);
+				}
+			}
+			if((было & есть) == 0)
+				итог.push(String(база));
+			итог.push(...код);
+			for(i = 0; i <= 9; ++ i) {
+				if((масштаб[i] >> биты) > 0)
+					масштаб[i] -= 1 << биты;
+			}
+			-- биты;
+			было = есть;
+			всего.unshift(база);
+			//всего = [база].concat(всего);
+		}
+	}
+	return итог.join(" ");
+}
+/*
+Процедура разбор_вектора(вектор):
+    Инициализация:
+        масштаб = массив[0..9] заполненный 0
+        уровень = 0
+        биты = 0
+        итог = пустой список
+        всего = пустой стек
+        база = 0
+
+    Шаг 1: Парсинг входных данных
+        Удалить символы-разделители (например, "#")
+        Разбить вектор на части по паттерну:
+            (D\d | \d | \+\d*\*?D\d | [-+]?\d+)
+        Если части не найдены:
+            вернуть пустую строку
+
+        Извлечь базу:
+            база = числовое значение последней цифры первой части (например, "D1" → 1)
+
+    Шаг 2: Заполнение шкалы масштаба
+        Для каждой части:
+            Если часть содержит "+числоDцифра" (например, "+17D3"):
+                индекс = цифра после D (3)
+                значение = число перед D (17) или 1, если не указано
+                масштаб[индекс] += значение
+            Иначе если часть содержит Dцифра (например, "D2"):
+                индекс = цифра после D (2)
+                масштаб[индекс] += 1
+
+    Шаг 3: Определение битовой глубины
+        Для каждого индекса i от 0 до 9:
+            Если масштаб[i] > 0:
+                j = floor(log2(масштаб[i]))
+                биты = max(биты, j)
+
+    Шаг 4: Итеративная битовая декомпозиция
+        итог.добавить(база)  # Добавляем базу только один раз в начале
+        было = 0
+        пока биты >= 0:
+            есть = 0
+            код = []
+            текущий_бит = 1 << биты
+
+            Для каждого индекса i от 0 до 9:
+                Если (масштаб[i] & текущий_бит) ≠ 0:
+                    есть |= 1 << i
+                    код.добавить(i)
+                    масштаб[i] -= текущий_бит
+
+            Если (было & есть) == 0 и есть ≠ 0:
+                итог.добавить(база)  # Добавляем базу только при изменении активных битов
+
+            Если код не пуст:
+                итог.добавить(все элементы кода)
+            было = есть
+            биты -= 1
+
+    Шаг 5: Постобработка
+        Для i от 0 до 9:
+            Пока масштаб[i] > 0:
+                итог.добавить(i)
+                масштаб[i] -= 1
+
+    Возврат:
+        Объединить элементы итога через пробел
+*/
+
+function parse_vector(text) {
+	var	i, j;
+	var	prd = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	var	ofs = 0, sign = 1, scan = 0, mode = 0;
+	var	codes = [], code, parts, part;
+	var	uses, used = 0, using, usings = [], base;
+	logs = [];
+	if(text.match(/[0-7_]+#/))
+		mode = +(text.replace(/0/g, "8").replace(/_/g, "9").match(/(\d+)/)[1]),
+		parts = text.replace(/[0-7_]+#/, "").match(/(D\d)|(\+\d*D\d)|([-+]\d+)/gi);
+	else
+		parts = text.match(/(D\d)|(\+\d*\*?D\d)|([-+]?\d+)/gi);
+	if(parts) {
+		if(parts[0].match(/^D\d$/i))
+			base = +(parts[0].substr(-1));
+		else
+		if(parts[0].match(/[-+]\d+/))
+			ofs = +(parts[0].substr(1)),
+			base = 9;
+		for(part of parts) {
+			if(part.match(/\+\d*D\d/i)) {
+				prd[+(part.substr(-1))] += isFinite(parseInt(part.substr(1))) ? parseInt(part.substr(1)) : 1;
+			} else
+			if(part.match(/[-+]\d+/)) {
+				if(part.match(/-\d+/))
+					sign = -1;
+				ofs = +(part.substr(1));
+			}
+		}
+		for(i = 0; i <= 9; ++ i) {
+			j = -1;
+			while((prd[i] >> (j + 1)) > 0)
+				++ j;
+			if(scan < j)
+				scan = j;
+		}
+		usings.push(base);
+		while(scan >= 0) {
+			uses = 0;
+			using = [];
+			i = usings.pop();
+			code = [];
+			if((prd[i] >> scan) > 0) {
+				prd[i] -= 1 << scan;
+				uses |= 1 << i;
+				code.push(i);
+				if(scan > 0 && ((prd[i] >> (scan - 1)) & 1) > 0)
+					using.push(String(i));
+			}
+			for(i = 0; i <= 9; ++ i) {
+				if((prd[i] >> scan) > 0) {
+					uses |= 1 << i;
+					code.push(String(i));
+					if(scan > 0 && ((prd[i] >> (scan - 1)) & 1) > 0)
+						using.push(i);
+				}
+			}
+			if((used & uses) == 0)
+				codes.push(String(base));
+			codes = codes.concat(code);
+			for(i = 0; i <= 9; ++ i) {
+				if((prd[i] >> scan) > 0)
+					prd[i] -= 1 << scan;
+			}
+			-- scan;
+			used = uses;
+			usings = [base].concat(using);
+		}
+	}
+	i = codes.length;
+	while(-- i >= 0)
+		codes[i] += String(ofs % 10),
+		ofs = (ofs / 10) | 0;
+	while(ofs > 0)
+		codes.unshift(base + String(ofs % 10)),
+		ofs = (ofs / 10) | 0;
+	if(sign < 0)
+		codes.unshift(base + "0");
+	if(typeof mode != "number")
+		mode = mode ? Number(mode[1]) : 0;
+	while(mode > 0)
+		codes.unshift((mode % 10) + "0", (mode % 10) + "0"),
+		mode = (mode / 10) | 0;
+	return codes.join(" ");
+}
+
+function encode(el) {
+	var	alu = {
+		ADD:10, ADC:10, INC:10,
+		DEC:11, SBB:11, SUB:11,
+		AND:12, CLR:12, CON:12,
+		DIS:13, OR:13, SET:13,
+		EOR:14, NOT:14, XOR:14,
+		FOR:15, MOV:15
+	};
+	var	rex = /(?<Label>[^:;"'`\s]*(?::))?(?:\s)*(?<Instruction>[A-Z]*)(?<Junk>[\d_]*)(?:\s*)(?<Operand1>[^\s,;"'`]*)(?:[,\s]*)?(?<Operand2>[^\s,;"'`]*)?(?:[,\s]*)?(?<Operand3>[^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/i;
+	var	part = rex.exec(el.value);
+	var	command = (part.groups.Instruction + " " + part.groups.Operand1 + (part[4] ? "," + part[4] + (part[5] ? "," + part[5] : "") : "")).toUpperCase();
+	var	arg = [];
+	var	inf = [];
+	var	__, _ = [];
+	var	encode = "", codes = "";
+	var	prefixes = "";
+	var	junks = "";
+	var	group = part.groups.Instruction
+		.replace(/^(ADC|ADD|AND|CON|DIS|EOR|FOR|MOV|OR|SBB|SUB|XOR)$/i, "ALU")
+		.replace(/^(CLR|DEC|INC|NOT|SET)$/i, "UNA");
+	var	no_carry = (part[2].match(/^(ADD|SUB)$/i)) ? "CE " : "";
+	if(part[2].toUpperCase() in alu)
+		encode = alu[part[2].toUpperCase()];
+	for(var	j = 4; j <= 6 && j < part.length; ++ j) {
+		if(part[j] && part[j] != "") {
+			if(part[j].match(/^(BC\d|D\d\+)$|[-+]\d+$|^[0-7_]*#/g)) {
+				_.push("@");
+				//arg.push(prefixes = parse_vector(part[j].toUpperCase().replace("BC", "D")));
+				//arg.push(prefixes = разбор_вектора(part[j].toUpperCase().replace("BC", "D")));
+				arg.push(prefixes = разбор_вектора_1(part[j].toUpperCase().replace("BC", "D")));
+				document.querySelector("#Hint").value = разбор_вектора(part[j].toUpperCase().replace("BC", "D"));
+			} else
+				_.push(part[j]),
+				arg.push(part[j]);
+		} else
+			arg.push("");
+	}
+	if(part.groups.Junk)
+		junks = part.groups.Junk.replace(/_/g, "9").replace(/0/g, "8").replace(/(\d)/g, "$10 $10 ");
+	inf.push(0);
+	__ = part[2].toUpperCase() + (_.length > 0 ? " " + _.join() : "");
+	__ = __.search.bind(__);
+	_ = group + (_.length > 0 ? " " + _.join() : "");
+	_ = _.search.bind(_);
+	switch(0) {
+	case __(/MOV (A0|FLG|FLAGS|PSW),@$/i):						codes = "AA A0 :: 0F"; break;
+	case __(/MOV @,(A0|FLG|FLAGS|PSW)$/i):						codes = ":: A0"; break;
+	case _(/UNA @$/i):											codes = "AA A0 :: 0_"; break;
+	case _(/EXI$/i):											codes = "AA A0 0E"; break;
+	case _(/SWP @,D[0-9]$/i):									codes = "AY A0 :: yF"; break;
+	case _(/SWP D[0-9],@$/i):									codes = "AX A0 :: xF"; break;
+	case __(/MOV @,([ABCD][0-9])$/i):							codes = ":: Yy"; break;
+	case _(/ALU @,D[0-9]$/i):									codes = "AY A0 ~:: y_"; break;
+	case _(/INF D[0-9]$/i):										codes = "AX A0 #xF"; break;
+	case _(/EHI|EI|STI$/i):										codes = "AD A0 #0C"; break;
+	case _(/UNA D[0-9]$/i):										codes = "AD A0 #x_"; break;
+	case _(/SWP (A[1-9]|[BC][0-9]),@$/i):						codes = "AX A0 :: xF"; break;
+	case _(/SWP @,(A[1-9]|[BC][0-9])$/i):						codes = "AY A0 :: yF"; break;
+	case _(/ALU @,(A[1-9]|[BC][0-9])$/i):						codes = "AY A0 ~:: y_"; break;
+	case __(/MOV (A0|FLG|FLAGS|PSW),(A[1-9]|[BC][0-9])$/i):		codes = "AY A0 #yF"; break;
+	case _(/UNA (A[1-9]|[BC][0-9])$/i):							codes = "AX A0 #x_"; break;
+	case _(/ALU D[0-9],@$/i):									codes = "XA Xx ~:: 0_"; break;
+	case _(/OUF D[0-9]$/i):										codes = "XA Xx #0F"; break;
+	case _(/UNA D[0-9],CF$/i):									codes = "XA Xx #0_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@$/i):						codes = "XA Xx ~:: 0_"; break;
+	case __(/MOV (A[1-9]|[BC][0-9]),(A0|FLG|FLAGS|PSW)$/i):		codes = "XA Xx #0F"; break;
+	case _(/UNA (A[1-9]|[BC][0-9]),CF$/i):						codes = "XA Xx #0_"; break;
+	case _(/LEA D[0-9],@$$/i):									codes = "XX Xx :: xF"; break;
+	case _(/ORD @,(A[1-9]|[BCD][0-9]),(A[1-9]|[BCD][0-9])$$/i):	codes = "YZ Yy :: zF"; break;
+	case _(/ALU D[0-9],@,D[0-9]$/i):							codes = "XZ Xx :: z_"; break;
+	case _(/ALU D[0-9],D[0-9]$/i):								codes = "XY Xx #y_"; break;
+	case _(/LEX (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BC][0-9])$$/i):	codes = "XZ Xx :: zF"; break;
+	case _(/ALU D[0-9],@,(A[1-9]|[BC][0-9])$/i):				codes = "XZ Xx :: z_"; break;
+	case _(/OUT D[0-9],(A[1-9]|[BC][0-9])$/i):					codes = "XY Xx #yF"; break;
+	case _(/ALU D[0-9],(A[1-9]|[BC][0-9])$/i):					codes = "XY Xx ~#y_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,D[0-9]$/i):				codes = "XZ Xx ~:: z_"; break;
+	case _(/IN (A[1-9]|[BC][0-9]),D[0-9]$/i):					codes = "XY Xx #yF"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),D[0-9]$/i):					codes = "XY Xx ~#y_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,(A[1-9]|[BC][0-9])$/i):	codes = "XZ Xx ~:: z_"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),(A[1-9]|[BC][0-9])$/i):		codes = "XY Xx ~#y_"; break;
+	case _(/ALU R[0-9]$/i):										codes = "~#x_"; break;
+	case _(/ALU R,@,R[0-9]$/i):									codes = "~:: z_"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9],[ABCD][0-9]$/i):		codes = "#Xx #Yy #Zz"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9]$/i):					codes = "#Xx #Yy"; break;
+	case _(/REG [ABCD][0-9]$/i):								codes = "#Xx"; break;
+	case _(/ARG [ABCD][0-9],[ABCD][0-9]$/i):					codes = "#XY Xx Yy"; break;
+	case _(/ARG [ABCD][0-9],[ABCD]$/i):							codes = "#XY Xx"; break;
+	case _(/ARG [ABCD],[ABCD]$/i):								codes = "#XY"; break;
+	case _(/BRK|HA?LT$/i):										codes = "#00"; break;
+	case _(/(HA?LT|JU?MP) @$/i):								codes = ":: 00"; break;
+	case __(/(CLR|ERA) [ABCD]F$/i):								codes = "#XE"; break;
+	case __(/(CMP|FLP|INV|NOT) [ABCD]F$/i):						codes = "#Xx"; break;
+	case __(/SET [ABCD]F$/i):									codes = "#XE #Xx"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F$/i):			codes = ":: Yy"; break;
+	case _(/DO @,[ABCD]F$/i):									codes = ":: YE"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]F$/i):	codes = ":: YZ"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]E$/i):	codes = "ZF :: YZ ZF"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]F$/i):	codes = "YF :: YZ YF"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]E$/i):	codes = "YF ZF :: YZ ZF YF"; break;
+	}
+	if(codes != "") {
+		codes = codes
+			.replace(/::/g, (junks + prefixes).trim())
+			.replace(/#/g, junks)
+			.replace(/~/g, no_carry)
+			.replace(/_/g, encode.toString(16))
+			.replace(/X/g, arg[0].charAt(0))
+			.replace(/x/g, arg[0].charAt(1))
+			.replace(/Y/g, arg[1].charAt(0))
+			.replace(/y/g, arg[1].charAt(1))
+			.replace(/Z/g, arg[2].charAt(0))
+			.replace(/z/g, arg[2].charAt(1))
+			.toUpperCase()
+			.split(/\s/);
+	} else
+		codes = ["Error"];
+	document.querySelector(el.dataset.for.split(/\s+/)[0]).textContent = codes.join(" ");
+	document.querySelector(el.dataset.log.split(/\s+/)[1]).textContent = logs.join("\n");
+}
+</script>
+</head>
+
+<body>
+<input type="text" data-for="#Dump" data-log="Log" placeholder="Type assembly at here" list="Samples" onchange="encode(this)" spellcheck="false">
+<pre id="Dump"></pre>
+<pre id="Log"></pre>
+<input id=Hint type=text />
+<datalist id="Samples">
+<option value="JUMP #D1+17D2+13D3+9D4+3D5+98765">Set Carry Flag</option>
+<option value="JUMP #D1+98D7+45D6+2D3">Set Carry Flag</option>
+<option value="JUMP #D8+65536">Jump [BC<sub>8</sub>+65536]</option>
+<option value="SET CF">Set Carry Flag</option>
+<option value="INF D5">Query Information about Port #5 and set Flags ZF/CF/OF/SF</option>
+<option value="IN A4,D5">Input data from Port #5 to Register A4</option>
+<option value="ADC A7,C3">Add C<sub>3</sub> to A<sub>7</sub> with Carry</option>
+<option value="ADD86 A7,C3">Add C<sub>3</sub> to A<sub>7</sub> with marginal #86</option>
+<option value="INC A7">Increment Register A<sub>7</sub></option>
+<option value="SBB A1,#D2">Subtract from Register A<sub>1</sub> data from Memory cell pointed by D<sub>2</sub> with Borrow</option>
+<option value="SUB #D2,A1">Subtract from Memory cell pointed by D<sub>2</sub> the Register A<sub>1</sub></option>
+<option value="DEC 7#D2">Decrement Memory cell pointed by D<sub>2</sub> with marginal #7</option>
+<option value="LEA D1,#D2+3D3+4D4+56789">Load Effective Address: Like x86-LEA</option>
+<option value="LEX C1,#D2+3D3+4D4+56789,B0">Lexical transform: Like x86-XLAT</option>
+<option value="ORD #D1+234,D5,D6">Put in Order Data from Memory and Register pairs BC<sub>6</sub> and set to BC<sub>5</sub> the average</option>
+<option value="ORD #D1+234,C5,B6">Put in Order Data from Memory and Register pairs BC<sub>6</sub> and set to C<sub>5</sub> the average</option>
+</datalist>
+</body></html>
