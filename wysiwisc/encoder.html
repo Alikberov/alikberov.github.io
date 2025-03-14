@@ -2,13 +2,65 @@
 <title>WYSIWISC Instructions Encoder</title>
 <style>
 body {
-	font-size:2em;
+	--font-size:2em;
 }
 input {
 	font-size:1em;
 	width:90%;
 }
 </style>
+
+<script>
+class WYSIWISC {
+	constructor() {
+		this.ram = new Uint8Array(65536);
+		this.ctx = new Uint8Array(65536);
+		this.ip = 0x0000;
+		//
+		this.dis_ctx = "T,S";
+		this.dis_reg = {A: "A0", B: "B0", C: "C0", D: "D0"};
+	}
+	//
+	dis_atom(op) {
+		const	h = op >> 4;
+		const	l = op & 15;
+		const	is_h_bcd = h <= 9;
+		const	is_l_bcd = l <= 9;
+		const	is_h_reg = h >= 0xA && h <= 0xD;
+		const	is_l_reg = l >= 0xA && l <= 0xD;
+		//
+		const	ptr_op = op > 0 && is_h_bcd && is_l_bcd;
+		const	rst_op = op >= 0xE0;
+		const	hlt_op = op == 0;
+		const	ctx_op = is_h_reg && is_l_reg;
+		const	reg_op = is_h_reg && is_l_bcd;
+		const	psw_op = is_h_reg && l >= 0xE;
+		const	alu_op = is_h_bcd && l >= 0xA;
+		//
+		const	alu = "ADC SBB AND OR EOR FOR".split(/\s+/);
+		const	hex = "0123456789ABCDEF";
+		const	h$ = hex.charAt(h);
+		const	l$ = hex.charAt(l);
+		const	pfx = this.dis_pfx;
+		//
+		this.dis_pfx = ptr_op;
+		//
+		if(ptr_op)	return	`\t[D${h}+${l}]`;
+		if(rst_op)	return	`INT\t${h$}${l$}`;
+		if(hlt_op)	return	`HLT\t`;
+		if(ctx_op)	return	`CTX\t${this.dis_ctx = [h$, l$].join()}`;
+		if(reg_op)	if(pfx)	return	`REG\t#RAM,${h$ + l$}`;
+				else if(this.dis_ctx[0] == h$)
+					return	`REG\t${this.dis_reg[this.dis_ctx[0]] = h$ + l$}`;
+				else
+					return	`REG\t${this.dis_reg[this.dis_ctx[0]]},${h$ + l$}`;
+		if(psw_op)	return	`C${String.fromCharCode(64 + (l & 0xD))}${h$}`;
+		if(alu_op)	return	`${alu[l - 0xA]}\t${this.dis_reg[this.dis_ctx[0]]},${this.dis_ctx[2] + h$}`;
+	}
+}
+
+const	cpu = new WYSIWISC();
+</script>
 
 <script>
 let	logs = [];
@@ -168,7 +220,7 @@ function parse_vector(text) {
 	return codes.join(" ");
 }
 
-function encode(el) {
+function encode(text) {
 	var	alu = {
 		ADD:10, ADC:10, INC:10,
 		DEC:11, SBB:11, SUB:11,
@@ -178,12 +230,13 @@ function encode(el) {
 		FOR:15, MOV:15
 	};
 	var	rex = /(?<Label>[^:;"'`\s]*(?::))?(?:\s)*(?<Instruction>[A-Z]*)(?<Junk>[\d_]*)(?:\s*)(?<Operand1>[^\s,;"'`]*)(?:[,\s]*)?(?<Operand2>[^\s,;"'`]*)?(?:[,\s]*)?(?<Operand3>[^\s,;"'`]*)(?:[,\s]*)?(?:(?:("(?:\\.|.)*?")|('(?:\\.|.)*?')|(`(?:\\.|.)*?`)|[^;"'`]*)*)*(\.*)/i;
-	var	part = rex.exec(el.value);
+	var	part = rex.exec(text);
 	var	command = (part.groups.Instruction + " " + part.groups.Operand1 + (part[4] ? "," + part[4] + (part[5] ? "," + part[5] : "") : "")).toUpperCase();
 	var	arg = [];
 	var	inf = [];
 	var	__, _ = [];
 	var	encode = "", codes = "";
+	let	code;
 	var	prefixes = "";
 	var	junks = "";
 	var	group = part.groups.Instruction
@@ -214,63 +267,65 @@ function encode(el) {
 	_ = group + (_.length > 0 ? " " + _.join() : "");
 	_ = _.search.bind(_);
 	switch(0) {
-	case __(/MOV (A0|FLG|FLAGS|PSW),@$/i):						codes = "AA A0 :: 0F"; break;
-	case __(/MOV @,(A0|FLG|FLAGS|PSW)$/i):						codes = ":: A0"; break;
-	case _(/UNA @$/i):											codes = "AA A0 :: 0_"; break;
-	case _(/EXI$/i):											codes = "AA A0 0E"; break;
-	case _(/SWP @,D[0-9]$/i):									codes = "AY A0 :: yF"; break;
-	case _(/SWP D[0-9],@$/i):									codes = "AX A0 :: xF"; break;
-	case __(/MOV @,([ABCD][0-9])$/i):							codes = ":: Yy"; break;
-	case _(/ALU @,D[0-9]$/i):									codes = "AY A0 ~:: y_"; break;
-	case _(/INF D[0-9]$/i):										codes = "AX A0 #xF"; break;
-	case _(/EHI|EI|STI$/i):										codes = "AD A0 #0C"; break;
-	case _(/UNA D[0-9]$/i):										codes = "AD A0 #x_"; break;
-	case _(/SWP (A[1-9]|[BC][0-9]),@$/i):						codes = "AX A0 :: xF"; break;
-	case _(/SWP @,(A[1-9]|[BC][0-9])$/i):						codes = "AY A0 :: yF"; break;
-	case _(/ALU @,(A[1-9]|[BC][0-9])$/i):						codes = "AY A0 ~:: y_"; break;
-	case __(/MOV (A0|FLG|FLAGS|PSW),(A[1-9]|[BC][0-9])$/i):		codes = "AY A0 #yF"; break;
-	case _(/UNA (A[1-9]|[BC][0-9])$/i):							codes = "AX A0 #x_"; break;
-	case _(/ALU D[0-9],@$/i):									codes = "XA Xx ~:: 0_"; break;
-	case _(/OUF D[0-9]$/i):										codes = "XA Xx #0F"; break;
-	case _(/UNA D[0-9],CF$/i):									codes = "XA Xx #0_"; break;
-	case _(/ALU (A[1-9]|[BC][0-9]),@$/i):						codes = "XA Xx ~:: 0_"; break;
-	case __(/MOV (A[1-9]|[BC][0-9]),(A0|FLG|FLAGS|PSW)$/i):		codes = "XA Xx #0F"; break;
-	case _(/UNA (A[1-9]|[BC][0-9]),CF$/i):						codes = "XA Xx #0_"; break;
-	case _(/LEA D[0-9],@$$/i):									codes = "XX Xx :: xF"; break;
-	case _(/ORD @,(A[1-9]|[BCD][0-9]),(A[1-9]|[BCD][0-9])$$/i):	codes = "YZ Yy :: zF"; break;
-	case _(/ALU D[0-9],@,D[0-9]$/i):							codes = "XZ Xx :: z_"; break;
-	case _(/ALU D[0-9],D[0-9]$/i):								codes = "XY Xx #y_"; break;
-	case _(/LEX (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BC][0-9])$$/i):	codes = "XZ Xx :: zF"; break;
-	case _(/ALU D[0-9],@,(A[1-9]|[BC][0-9])$/i):				codes = "XZ Xx :: z_"; break;
-	case _(/OUT D[0-9],(A[1-9]|[BC][0-9])$/i):					codes = "XY Xx #yF"; break;
-	case _(/ALU D[0-9],(A[1-9]|[BC][0-9])$/i):					codes = "XY Xx ~#y_"; break;
-	case _(/ALU (A[1-9]|[BC][0-9]),@,D[0-9]$/i):				codes = "XZ Xx ~:: z_"; break;
-	case _(/IN (A[1-9]|[BC][0-9]),D[0-9]$/i):					codes = "XY Xx #yF"; break;
-	case _(/ALU (A[1-9]|[BC][0-9]),D[0-9]$/i):					codes = "XY Xx ~#y_"; break;
-	case _(/ALU (A[1-9]|[BC][0-9]),@,(A[1-9]|[BC][0-9])$/i):	codes = "XZ Xx ~:: z_"; break;
-	case _(/ALU (A[1-9]|[BC][0-9]),(A[1-9]|[BC][0-9])$/i):		codes = "XY Xx ~#y_"; break;
-	case _(/ALU R[0-9]$/i):										codes = "~#x_"; break;
-	case _(/ALU R,@,R[0-9]$/i):									codes = "~:: z_"; break;
-	case _(/REG [ABCD][0-9],[ABCD][0-9],[ABCD][0-9]$/i):		codes = "#Xx #Yy #Zz"; break;
-	case _(/REG [ABCD][0-9],[ABCD][0-9]$/i):					codes = "#Xx #Yy"; break;
-	case _(/REG [ABCD][0-9]$/i):								codes = "#Xx"; break;
-	case _(/ARG [ABCD][0-9],[ABCD][0-9]$/i):					codes = "#XY Xx Yy"; break;
-	case _(/ARG [ABCD][0-9],[ABCD]$/i):							codes = "#XY Xx"; break;
-	case _(/ARG [ABCD],[ABCD]$/i):								codes = "#XY"; break;
-	case _(/BRK|HA?LT$/i):										codes = "#00"; break;
-	case _(/(HA?LT|JU?MP|DEF|DBG) @$/i):								codes = ":: 00"; break;
-	case __(/(CLR|ERA) [ABCD]F$/i):								codes = "#XE"; break;
-	case __(/(CMP|FLP|INV|NOT) [ABCD]F$/i):						codes = "#Xx"; break;
-	case __(/SET [ABCD]F$/i):									codes = "#XE #Xx"; break;
-	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F$/i):			codes = ":: Yy"; break;
-	case _(/DO @,[ABCD]F$/i):									codes = ":: YE"; break;
+	case __(/MOV (A0|FLG|FLAGS|PSW),@$/i):				codes = "AA A0 :: 0F		Load PSW"; break;
+	case __(/MOV @,(A0|FLG|FLAGS|PSW)$/i):				codes = ":: A0			Save PSW"; break;
+	case _(/UNA @$/i):						codes = "AA A0 :: 0_		Unar RAM"; break;
+	case _(/EXI$/i):						codes = "AA A0 0E		Exit"; break;
+	case _(/SWP @,D[0-9]$/i):					codes = "AY A0 :: yF		Swap RAM,Dn"; break;
+	case _(/SWP D[0-9],@$/i):					codes = "AX A0 :: xF		Swap Dn,RAM"; break;
+	case __(/MOV @,([ABCD][0-9])$/i):				codes = ":: Yy			Save APR"; break;
+	case _(/ALU @,D[0-9]$/i):					codes = "AY A0 ~:: y_		ALU RAM,Dn"; break;
+	case _(/INF D[0-9]$/i):						codes = "AX A0 #xF		Try for Input"; break;
+	case _(/EHI|EI|STI$/i):						codes = "AD A0 #0C		Enable Interrupts"; break;
+	case _(/UNA D[0-9]$/i):						codes = "AD A0 #x_		Unar Dn"; break;
+	case _(/SWP (A[1-9]|[BC][0-9]),@$/i):				codes = "AX A0 :: xF		Swap APR,RAM"; break;
+	case _(/SWP @,(A[1-9]|[BC][0-9])$/i):				codes = "AY A0 :: yF		Swap RAM,APR"; break;
+	case _(/ALU @,(A[1-9]|[BC][0-9])$/i):				codes = "AY A0 ~:: y_		ALU RAM,APR"; break;
+	case __(/MOV (A0|FLG|FLAGS|PSW),(A[1-9]|[BC][0-9])$/i):		codes = "AY A0 #yF		Set PSW"; break;
+	case _(/UNA (A[1-9]|[BC][0-9])$/i):				codes = "AX A0 #x_		Unar APR"; break;
+	case _(/ALU D[0-9],@$/i):					codes = "XA Xx ~:: 0_		ALU Dn,RAM"; break;
+	case _(/OUF D[0-9]$/i):						codes = "XA Xx #0F		Try for Output"; break;
+	case _(/UNA D[0-9],CF$/i):					codes = "XA Xx #0_		Unar Dn if CF"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@$/i):				codes = "XA Xx ~:: 0_		ALU APR,RAM"; break;
+	case __(/MOV (A[1-9]|[BC][0-9]),(A0|FLG|FLAGS|PSW)$/i):		codes = "XA Xx #0F		Get PSW"; break;
+	case _(/UNA (A[1-9]|[BC][0-9]),CF$/i):				codes = "XA Xx #0_		Unar APR if CF"; break;
+	case _(/LEA D[0-9],@$$/i):					codes = "XX Xx :: xF		Load Effective Address"; break;
+	case _(/ORD @,(A[1-9]|[BCD][0-9]),(A[1-9]|[BCD][0-9])$$/i):	codes = "YZ Yy :: zF		Average"; break;
+	case _(/ALU D[0-9],@,D[0-9]$/i):				codes = "XZ Xx :: z_		ALU Dn,RAM,Dv"; break;
+	case _(/ALU D[0-9],D[0-9]$/i):					codes = "XY Xx #y_		ALU Dn,Dv"; break;
+	case _(/LEX (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BC][0-9])$$/i):	codes = "XZ Xx :: zF		XLAT"; break;
+	case _(/ALU D[0-9],@,(A[1-9]|[BC][0-9])$/i):			codes = "XZ Xx :: z_		ALU Dn,RAM,APR"; break;
+	case _(/OUT D[0-9],(A[1-9]|[BC][0-9])$/i):			codes = "XY Xx #yF		Output"; break;
+	case _(/ALU D[0-9],(A[1-9]|[BC][0-9])$/i):			codes = "XY Xx ~#y_		ALU Dn,APR"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,D[0-9]$/i):			codes = "XZ Xx ~:: z_		ALU APR,RAM,Port"; break;
+	case _(/IN (A[1-9]|[BC][0-9]),D[0-9]$/i):			codes = "XY Xx #yF		Input"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),D[0-9]$/i):			codes = "XY Xx ~#y_		ALU APR,Port"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),@,(A[1-9]|[BC][0-9])$/i):	codes = "XZ Xx ~:: z_		ALU APR,RAM,APR"; break;
+	case _(/ALU (A[1-9]|[BC][0-9]),(A[1-9]|[BC][0-9])$/i):		codes = "XY Xx ~#y_		ALU APR,APR"; break;
+	case _(/ALU R[0-9]$/i):						codes = "~#x_			ALU S"; break;
+	case _(/ALU R,@,R[0-9]$/i):					codes = "~:: z_			ALU T,RAM,S"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9],[ABCD][0-9]$/i):		codes = "#Xx #Yy #Zz		Registers APRs"; break;
+	case _(/REG [ABCD][0-9],[ABCD][0-9]$/i):			codes = "#Xx #Yy		Registers APRs"; break;
+	case _(/REG [ABCD][0-9]$/i):					codes = "#Xx			Register APR"; break;
+	case _(/CTX [ABCD][0-9],[ABCD][0-9]$/i):			codes = "#XY Xx Yy		Context"; break;
+	case _(/CTX [ABCD][0-9],[ABCD]$/i):				codes = "#XY Xx			Context"; break;
+	case _(/CTX [ABCD],[ABCD]$/i):					codes = "#XY			Context"; break;
+	case _(/BRK|HA?LT$/i):						codes = "#00			Break"; break;
+	case _(/(JU?MP) @$/i):						codes = ":: 00			Jump"; break;
+	case _(/(DEF) @$/i):						codes = ":: 00			Define Delegate"; break;
+	case _(/(DBG) @$/i):						codes = ":: 00			Debug Delegate"; break;
+	case __(/(CLR|ERA) [ABCD]F$/i):					codes = "#XE			Clear Flag"; break;
+	case __(/(CMP|FLP|INV|NOT) [ABCD]F$/i):				codes = "#Xx			Complement Flag"; break;
+	case __(/SET [ABCD]F$/i):					codes = "#XE #Xx		Set Flag"; break;
+	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F$/i):		codes = ":: Yy			Branch by flag"; break;
+	case _(/DO @,[ABCD]F$/i):					codes = ":: YE"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]F$/i):	codes = ":: YZ"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]E$/i):	codes = "ZF :: YZ ZF"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]F$/i):	codes = "YF :: YZ YF"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]E,[ABCD]E$/i):	codes = "YF ZF :: YZ ZF YF"; break;
 	}
 	if(codes != "") {
-		codes = codes
+		code = codes.split(/\t/)[0]
 			.replace(/::/g, (junks + prefixes).trim())
 			.replace(/#/g, junks)
 			.replace(/~/g, no_carry)
@@ -284,36 +339,80 @@ function encode(el) {
 			.toUpperCase()
 			.split(/\s/);
 	} else
-		codes = ["Error"];
-	document.querySelector(el.dataset.for.split(/\s+/)[0]).textContent = codes.join(" ");
+		code = ["Error"];
+	return {
+		byte	:code,
+		desc	:codes.split(/\t+/)[1]
+	}
 	//document.querySelector(el.dataset.log.split(/\s+/)[1]).textContent = logs.join("\n");
+}
+
+function atomic_asm(el) {
+	const	row = el.value.substr(0, el.selectionEnd).split(/\r?\n/).length - 1;
+	const	rows = el.value.split(/\r?\n/);
+	let	dump = [];
+	let	desc = [];
+	for(const row of rows) {
+		if(row) {
+			const	code = encode(row);
+			dump.push(code.byte.join("_"));
+			desc.push(code.desc);
+		}
+	}
+	const	bytes = document.querySelector(el.dataset.for.split(/\s+/)[0])
+	bytes.value = dump.join("\n");
+	document.querySelector(el.dataset.desc.split(/\s+/)[0]).value = desc.join("\n");
+	atomic_disassm(bytes, row);
+}
+
+function atomic_disassm(el, row) {
+	const	rows = el.value.substr(0, el.selectionEnd).split(/\r?\n/).length - 1;
+	const	bytes = el.value.split(/\r?\n/)[row || rows].split(/_|\s+/);
+	let	atoms = [];
+	for(code of bytes) {
+		atoms.push(cpu.dis_atom(parseInt(code, 16)));
+	}
+	document.querySelector(el.dataset.desc.split(/\s+/)[0]).textContent = atoms.join("\n");
 }
 </script>
 </head>
 
 <body>
-<input type="text" data-for="#Dump" data-log="Log" placeholder="Type assembly at here" list="Samples" onchange="encode(this)" spellcheck="false">
-<pre id="Dump"></pre>
+<table>
+<tr><th>Linear assembler</th><th>Atomic byte-code</th><th>Description</th></tr>
+<tr><td>
+<textarea rows=25 cols=40
+ data-for="#Dump"
+ data-desc="#Desc"
+ data-log="#Log"
+ oninput='atomic_asm(this)'
+ onkeyup='atomic_asm(this)'
+ onfocus='atomic_asm(this)'
+ spellcheck=false>
+DEF	1234#D1+17D2+13D3+9D4+3D5+98765
+DBG	123456789#
+JUMP	#D1+17D2+13D3+9D4+3D5+98765
+JUMP	#D1+98D7+45D6+2D3
+JUMP	#D8+65536
+SET	CF
+INF	D5
+IN	A4,D5
+ADC	A7,C3
+ADD	A7,86#,C3
+INC	A7
+SBB	A1,#D2
+SUB	#D2,A1
+DEC	7#D2
+LEA	D1,#D2+3D3+4D4+56789
+LEX	C1,#D2+3D3+4D4+56789,B0
+ORD	#D1+234,D5,D6
+ORD	#D1+234,C5,B6
+</textarea></td>
+<td><textarea rows=25 cols=64 id=Dump
+ data-desc='#Log'
+ onclick='atomic_disassm(this)'
+ onkeyup='atomic_disassm(this)'></textarea></td>
+<td><textarea rows=25 cols=32 id=Desc></textarea></td></tr></table>
 <pre id="Log"></pre>
 <input id=Hint type=text />
-<datalist id="Samples">
-<option value="DEF 1234#D1+17D2+13D3+9D4+3D5+98765">Define Delegate</option>
-<option value="DBG 123456789#">Debug Delegate</option>
-<option value="JUMP #D1+17D2+13D3+9D4+3D5+98765">Jump</option>
-<option value="JUMP #D1+98D7+45D6+2D3">Jump</option>
-<option value="JUMP #D8+65536">Jump [BC<sub>8</sub>+65536]</option>
-<option value="SET CF">Set Carry Flag</option>
-<option value="INF D5">Query Information about Port #5 and set Flags ZF/CF/OF/SF</option>
-<option value="IN A4,D5">Input data from Port #5 to Register A4</option>
-<option value="ADC A7,C3">Add C<sub>3</sub> to A<sub>7</sub> with Carry</option>
-<option value="ADD86 A7,C3">Add C<sub>3</sub> to A<sub>7</sub> with marginal #86</option>
-<option value="INC A7">Increment Register A<sub>7</sub></option>
-<option value="SBB A1,#D2">Subtract from Register A<sub>1</sub> data from Memory cell pointed by D<sub>2</sub> with Borrow</option>
-<option value="SUB #D2,A1">Subtract from Memory cell pointed by D<sub>2</sub> the Register A<sub>1</sub></option>
-<option value="DEC 7#D2">Decrement Memory cell pointed by D<sub>2</sub> with marginal #7</option>
-<option value="LEA D1,#D2+3D3+4D4+56789">Load Effective Address: Like x86-LEA</option>
-<option value="LEX C1,#D2+3D3+4D4+56789,B0">Lexical transform: Like x86-XLAT</option>
-<option value="ORD #D1+234,D5,D6">Put in Order Data from Memory and Register pairs BC<sub>6</sub> and set to BC<sub>5</sub> the average</option>
-<option value="ORD #D1+234,C5,B6">Put in Order Data from Memory and Register pairs BC<sub>6</sub> and set to C<sub>5</sub> the average</option>
-</datalist>
 </body></html>
