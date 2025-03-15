@@ -21,24 +21,31 @@ class WYSIWISC {
 		this.dis_reg = {A: "A0", B: "B0", C: "C0", D: "D0"};
 	}
 	//
-	dis_atom(op) {
+	decoder(op) {
 		const	h = op >> 4;
 		const	l = op & 15;
-		const	is_h_bcd = h <= 9;
-		const	is_l_bcd = l <= 9;
-		const	is_h_reg = h >= 0xA && h <= 0xD;
-		const	is_l_reg = l >= 0xA && l <= 0xD;
+		const	h_is_bcd = h <= 9;
+		const	l_is_bcd = l <= 9;
+		const	h_is_reg = h >= 0xA && h <= 0xD;
+		const	l_is_reg = l >= 0xA && l <= 0xD;
 		//
-		const	ptr_op = op > 0 && is_h_bcd && is_l_bcd;
-		const	rst_op = op >= 0xE0;
-		const	hlt_op = op == 0;
-		const	ctx_op = is_h_reg && is_l_reg;
-		const	reg_op = is_h_reg && is_l_bcd;
-		const	psw_op = is_h_reg && l >= 0xE;
-		const	alu_op = is_h_bcd && l >= 0xA;
+		return {
+			ptr_op: op > 0 && h_is_bcd && l_is_bcd,
+			rst_op: op >= 0xE0,
+			hlt_op: op == 0,
+			ctx_op: h_is_reg && l_is_reg,
+			reg_op: h_is_reg && l_is_bcd,
+			psw_op: h_is_reg && l >= 0xE,
+			alu_op: h_is_bcd && l >= 0xA
+		}
+	}
+	dis_atom(op) {
+		const	{ptr_op, rst_op, hlt_op, ctx_op, reg_op, psw_op, alu_op} = this.decoder(op);
 		//
 		const	alu = "ADC SBB AND OR EOR FOR".split(/\s+/);
 		const	hex = "0123456789ABCDEF";
+		const	h = op >> 4;
+		const	l = op & 15;
 		const	h$ = hex.charAt(h);
 		const	l$ = hex.charAt(l);
 		const	pfx = this.dis_pfx;
@@ -57,6 +64,7 @@ class WYSIWISC {
 		if(psw_op)	return	`C${String.fromCharCode(64 + (l & 0xD))}${h$}`;
 		if(alu_op)	return	`${alu[l - 0xA]}\t${this.dis_reg[this.dis_ctx[0]]},${this.dis_ctx[2] + h$}`;
 	}
+	//
 }
 
 const	cpu = new WYSIWISC();
@@ -111,7 +119,7 @@ function разбор_вектора(вектор) {
 					парный |= (масштаб[индекс] & (масштаб[индекс] << 1)) & разряд;
 				}
 			}
-			console.log(ключи);
+			//console.log(ключи);
 			if(!парный && разряд > 1)
 				итог.push(`${база}`);
 			разряд >>= 1;
@@ -252,7 +260,7 @@ function encode(text) {
 				//arg.push(prefixes = parse_vector(part[j].toUpperCase().replace("BC", "D")));
 				//arg.push(prefixes = разбор_вектора(part[j].toUpperCase().replace("BC", "D")));
 				arg.push(prefixes = разбор_вектора(part[j].toUpperCase().replace("BC", "D")));
-				document.querySelector("#Hint").value = разбор_вектора(part[j].toUpperCase().replace("BC", "D"));
+				//document.querySelector("#Hint").value = разбор_вектора(part[j].toUpperCase().replace("BC", "D"));
 			} else
 				_.push(part[j]),
 				arg.push(part[j]);
@@ -293,6 +301,7 @@ function encode(text) {
 	case _(/ORD @,(A[1-9]|[BCD][0-9]),(A[1-9]|[BCD][0-9])$$/i):	codes = "YZ Yy :: zF		Average"; break;
 	case _(/ALU D[0-9],@,D[0-9]$/i):				codes = "XZ Xx :: z_		ALU Dn,RAM,Dv"; break;
 	case _(/ALU D[0-9],D[0-9]$/i):					codes = "XY Xx #y_		ALU Dn,Dv"; break;
+	case _(/ALU [ABCD][0-9]$/i):					codes = "#x_			ALU APR"; break;
 	case _(/LEX (A[1-9]|[BCD][0-9]),@,(A[1-9]|[BC][0-9])$$/i):	codes = "XZ Xx :: zF		XLAT"; break;
 	case _(/ALU D[0-9],@,(A[1-9]|[BC][0-9])$/i):			codes = "XZ Xx :: z_		ALU Dn,RAM,APR"; break;
 	case _(/OUT D[0-9],(A[1-9]|[BC][0-9])$/i):			codes = "XY Xx #yF		Output"; break;
@@ -318,6 +327,14 @@ function encode(text) {
 	case __(/(CMP|FLP|INV|NOT) [ABCD]F$/i):				codes = "#Xx			Complement Flag"; break;
 	case __(/SET [ABCD]F$/i):					codes = "#XE #Xx		Set Flag"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F$/i):		codes = ":: Yy			Branch by flag"; break;
+	case _(/(BAE|JAE|RAE|JNS) @$/i):				codes = ":: AE			Branch by flag"; break;
+	case _(/(BAF|JAF|RAF|JS) @$/i):					codes = ":: AF			Branch by flag"; break;
+	case _(/(BBE|JBE|RBE|JNO) @$/i):				codes = ":: BE			Branch by flag"; break;
+	case _(/(BBF|JBF|RBF|JO) @$/i):					codes = ":: BF			Branch by flag"; break;
+	case _(/(BCE|JCE|RCE|JNC) @$/i):				codes = ":: CE			Branch by flag"; break;
+	case _(/(BCF|JCF|RCF|JC) @$/i):					codes = ":: CF			Branch by flag"; break;
+	case _(/(BDE|JDE|RDE|JNZ) @$/i):				codes = ":: DE			Branch by flag"; break;
+	case _(/(BDF|JDF|RDF|JZ) @$/i):					codes = ":: DF			Branch by flag"; break;
 	case _(/DO @,[ABCD]F$/i):					codes = ":: YE"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]F$/i):	codes = ":: YZ"; break;
 	case _(/(BRK|HA?LT|JU?MP|LOOP|RET) @,[ABCD]F,[ABCD]E$/i):	codes = "ZF :: YZ ZF"; break;
@@ -360,28 +377,67 @@ function atomic_asm(el) {
 		}
 	}
 	const	bytes = document.querySelector(el.dataset.for.split(/\s+/)[0])
-	bytes.value = dump.join("\n");
-	document.querySelector(el.dataset.desc.split(/\s+/)[0]).value = desc.join("\n");
+	//bytes.value = dump.join("\n");
+	bytes.style.maxHeight = `${el.offsetHeight}px`;
+	bytes.style.verticalAlign = "top";
+	bytes.textContent = "";
+	for(const word of dump) {
+		const	line = document.createElement("pre");
+		line.textContent = word;
+		bytes.appendChild(line);
+		line.style.margin = "0";
+	}
+	document.querySelector(el.dataset.desc.split(/\s+/)[0]).textContent = desc.join("\n");
 	atomic_disassm(bytes, row);
+	document.querySelector("#Dump").style.height = `${el.offsetHeight}px`;
 }
 
 function atomic_disassm(el, row) {
 	const	rows = el.value.substr(0, el.selectionEnd).split(/\r?\n/).length - 1;
 	const	bytes = el.value.split(/\r?\n/)[row || rows].split(/_|\s+/);
 	let	atoms = [];
-	for(code of bytes) {
-		atoms.push(cpu.dis_atom(parseInt(code, 16)));
-	}
+	for(code of bytes)
+		atoms.push(`${code}\t${cpu.dis_atom(parseInt(code, 16))}`);
 	document.querySelector(el.dataset.desc.split(/\s+/)[0]).textContent = atoms.join("\n");
+}
+
+function dumpOver(evt) {
+	const	row = getTextAreaRow(evt);
+	atomic_disassm(evt.srcElement, row);
+}
+
+function main() {
+	document.querySelector("#Dump")
+	.addEventListener("mousemove",
+		function(evt) {
+			const src = evt.srcElement;
+			const	bytes = src.textContent.match(/[0-9A-F]{2}/gm);
+			let	atoms = [];
+			for(const code of bytes)
+				atoms.push(`${code}\t${cpu.dis_atom(parseInt(code, 16))}`);
+			document.querySelector("#Atoms").textContent = atoms.join("\n");
+		}
+	);
+	document.querySelector("#Dump")
+	.addEventListener("keyup",
+		function(evt) {
+			const src = evt.srcElement;
+			const	bytes = src.textContent.match(/[0-9A-F]{2}$/gm);
+			let	atoms = [];
+			for(const code of bytes)
+				atoms.push(`${code}\t${cpu.dis_atom(parseInt(code, 16))}`);
+		}
+	);
 }
 </script>
 </head>
 
-<body>
-<table>
-<tr><th>Linear assembler</th><th>Atomic byte-code</th><th>Description</th></tr>
-<tr><td>
-<textarea rows=25 cols=40
+<body onload='main()'>
+<table style='table-layout: fixed'>
+<tr><th>Linear assembler</th><th>Atomic byte-code</th><th>Description</th><th>Atoms</th></tr>
+<tr style=vertical-align:top><td>
+<textarea rows=15 cols=40
+ id=Assm
  data-for="#Dump"
  data-desc="#Desc"
  data-log="#Log"
@@ -389,7 +445,18 @@ function atomic_disassm(el, row) {
  onkeyup='atomic_asm(this)'
  onfocus='atomic_asm(this)'
  spellcheck=false>
-DEF	1234#D1+17D2+13D3+9D4+3D5+98765
+AND	D0,D0		; Cold start?
+JNZ	8#		; No: Run BIOS
+LEA	D8,#D0+256	; Yes: Init API
+LEA	D4,#D0+57344	; & init Stack
+LEA	D5,#D0+8192	; Source
+MOV	D6,D4		; Destination
+DEF	7#D0+1		; LOOP#7
+MOV	A9,#D5		; A9=[D5]
+MOV	#D6,A9		; [D6]=A9
+INC	D5		; D5++
+INC	D6		; D6++
+JNZ	7#		; JNZ LOOP#7
 DBG	123456789#
 JUMP	#D1+17D2+13D3+9D4+3D5+98765
 JUMP	#D1+98D7+45D6+2D3
@@ -406,13 +473,25 @@ DEC	7#D2
 LEA	D1,#D2+3D3+4D4+56789
 LEX	C1,#D2+3D3+4D4+56789,B0
 ORD	#D1+234,D5,D6
-ORD	#D1+234,C5,B6
-</textarea></td>
-<td><textarea rows=25 cols=64 id=Dump
- data-desc='#Log'
- onclick='atomic_disassm(this)'
- onkeyup='atomic_disassm(this)'></textarea></td>
-<td><textarea rows=25 cols=32 id=Desc></textarea></td></tr></table>
-<pre id="Log"></pre>
-<input id=Hint type=text />
+ORD	#D1+234,C5,B6</textarea></td>
+<td><div id=Dump contenteditable style=overflow-y:scroll></div></td>
+<td><div style=overflow-y:scroll><pre id=Desc></div></pre></td>
+<td><pre id="Atoms"></pre></td></tr></table>
+<input id=Hint type=text style=display:none />
+<script>
+const	hAssm	= document.querySelector("#Assm");
+const	hDump	= document.querySelector("#Dump");
+const	hDesc	= document.querySelector("#Desc");
+const	hAtom	= document.querySelector("#Atom");
+
+hAssm.addEventListener("mousemove", e => {
+	hDump.style.height = `${hAssm.offsetHeight}px`;
+	hDesc.parentElement.style.height = `${hAssm.offsetHeight}px`;
+});
+
+hAssm.addEventListener("scroll", e => {
+	hDump.scrollTop = hAssm.scrollTop;
+	hDesc.parentElement.scrollTop = hAssm.scrollTop;
+});
+</script>
 </body></html>
