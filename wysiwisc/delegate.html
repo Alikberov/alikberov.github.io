@@ -1,0 +1,45 @@
+<html>
+<head>
+<title>Delegate</title>
+
+<script>
+function parse_code(codes) {
+	let	value = hInput.value.replace(/\D+/g, "").split("");
+	let	array = new Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	const	base = value[0] || -1;
+	for(const index of value) {
+		const is_rotate = index == base;
+		const is_shift = (array[index] & 1) != 0;
+		if(is_rotate || is_shift)
+			for(const i in array)
+				array[i] <<= 1;
+		array[index] += 1;
+	}
+	for(let i = 0; i < 10; ++ i)
+		hTable.rows[i + 1].cells[1].textContent = i != Number(base) ? array[i] : "";
+}
+</script>
+
+<body>
+<input type=text placeholder='Type combination' value='12123123412345123456' style=width:100% />
+<table>
+<tr><th>Indexes</th><th>Scaling coefficient</th></tr>
+<tr><th>#0</th><td>0</td></tr>
+<tr><th>#1</th><td>0</td></tr>
+<tr><th>#2</th><td>0</td></tr>
+<tr><th>#3</th><td>0</td></tr>
+<tr><th>#4</th><td>0</td></tr>
+<tr><th>#5</th><td>0</td></tr>
+<tr><th>#6</th><td>0</td></tr>
+<tr><th>#7</th><td>0</td></tr>
+<tr><th>#8</th><td>0</td></tr>
+<tr><th>#9</th><td>0</td></tr>
+</table>
+<script>
+const	hInput = document.querySelector("input");
+const	hTable = document.querySelector("table");
+
+hInput.addEventListener("input", parse_code);
+hInput.addEventListener("keypress", parse_code);
+</script>
+</body>
