@@ -1,0 +1,225 @@
+<html>
+<head>
+<title>Пиксель Арт</title>
+<script type='text/javascript' src='https://unpkg.com/stats.js@1.0.0/src/Stats.js'></script>.
+<script>
+// Prepare for ImageData-Operations
+CanvasRenderingContext2D.prototype.lockImageData = function() {
+	const	imageData = this.getImageData(0, 0, this.canvas.width, this.canvas.height);
+	imageData.context = this;	// Основной родительский контекст
+	imageData.lastX = 0;		// Используется для отрисовки линий: moveTo/lineTo
+	imageData.lastY = 0;
+	imageData.beadStyle = "-";	// Аналогично lineStyle, задаёт текстуру "бисера"
+	imageData.lineStyle = "#987654";
+	imageData.bresenham = null;
+	return	imageData;
+}
+
+// Draw ImageData-Buffer back to main Canvas-Context
+ImageData.prototype.flush = function() {
+	this.context.putImageData(this, 0, 0);
+	return	this;
+}
+
+//
+ImageData.prototype.moveTo = function(x, y) {
+	this.lastX = x,
+	this.lastY = y;
+	return	this;
+}
+
+// 
+ImageData.prototype.lineTo = function(x2, y2, z2) {
+	var	color = parseInt(this.lineStyle.substr(1), 16) |0;
+	var	z = (z2 ? z2 : 0) |0;
+	"use asm";
+	var	r = ((color >> 16) & 255) |0;
+	var	g = ((color >> 8) & 255) |0;
+	var	b = (color & 255) |0;
+	var	buffer = this.data;
+	var	x1 = Math.floor(this.lastX || 0) |0;
+	var	y1 = Math.floor(this.lastY || 0) |0;
+	var	dx = (x2 - x1) |0;
+	var	dy = (y2 - y1) |0;
+	var	mx = ((dx < 0 ? -1 : +1) << 2) |0;
+	var	my = ((dy < 0 ? -this.width : +this.width) << 2) |0;
+	var	len = Math.max(Math.abs(dx), Math.abs(dy)) |0;
+	var	delta = Math.min(Math.abs(dx), Math.abs(dy)) |0;
+	var	err = ((len >> 1) + z) |0;
+	var	v1 = (Math.abs(dx) < Math.abs(dy) ? my : mx) |0;
+	var	v2 = (mx + my) |0;
+	var	ptr = ((x1 + y1 * this.width) << 2) |0;
+	for(var i = 0|0; i < len; i = (i + 1)|0) {
+		buffer[ptr] = (buffer[ptr] ^ b) |0;
+		buffer[ptr + 1] = (buffer[ptr + 1] ^ g) |0;
+		buffer[ptr + 2] = (buffer[ptr + 2] ^ r) |0;
+		buffer[ptr + 3] = 255 |0;
+		err = (err + delta) |0;
+		if(err < len)
+			ptr = (ptr + v1) |0;
+		else {
+			ptr = (ptr + v2) |0;
+			err = (err - len) |0;
+		}
+	}
+	this.lastX = Math.floor(x2),
+	this.lastY = Math.floor(y2);
+	return	this;
+}
+
+// Draw Beads Line
+ImageData.prototype.beadsTo = function(x2, y2) {
+	const	beads = {
+			"K"	:{ r:0x00, g:0x00, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// blacK
+			"N"	:{ r:0x80, g:0x80, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// browN
+			"R"	:{ r:0xC0, g:0x00, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Red
+			"O"	:{ r:0xC0, g:0x80, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Orange
+			"Y"	:{ r:0xC0, g:0xC0, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Yellow
+			"G"	:{ r:0x00, g:0xC0, b:0x00, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Green
+			"C"	:{ r:0x00, g:0xC0, b:0xC0, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Cyan
+			"B"	:{ r:0x00, g:0x00, b:0xC0, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Blue
+			"M"	:{ r:0xC0, g:0x00, b:0xC0, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Magenta
+			"E"	:{ r:0x40, g:0x40, b:0x40, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// grEy
+			"S"	:{ r:0x80, g:0x80, b:0x80, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// Silver
+			"W"	:{ r:0xC0, g:0xC0, b:0xC0, rmask:0x3F, gmask:0x3F, bmask:0x3F },	// White
+		};
+	var	x = Math.floor(this.lastX || 0);
+	var	y = Math.floor(this.lastY || 0);
+	var	dx = Math.floor(x2 - x);
+	var	dy = Math.floor(y2 - y);
+	var	len = Math.max(Math.abs(dx), Math.abs(dy));
+	var	brush, bead;
+	var	i = 0, ptr;
+	dx /= len ? len : 1;
+	dy /= len ? len : 1;
+	x += 0.5, y += 0.5;
+	while(len -- >= 0) {
+		bead = this.beadStyle.charAt(i ++);
+		if(bead == "X") {
+			ptr = (Math.floor(x) + Math.floor(y) * this.width) * 4;
+			this.data[ptr] = ((this.data[ptr] << 2) & 0xC0) | ((this.data[ptr] >> 2) & 0x30) | (this.data[ptr] & 0x0F), ptr ++;
+			this.data[ptr] = ((this.data[ptr] << 2) & 0xC0) | ((this.data[ptr] >> 2) & 0x30) | (this.data[ptr] & 0x0F), ptr ++;
+			this.data[ptr] = ((this.data[ptr] << 2) & 0xC0) | ((this.data[ptr] >> 2) & 0x30) | (this.data[ptr] & 0x0F), ptr ++;
+			this.data[ptr ++] = 0xFF;
+		} else
+		if(bead = beads[bead]) {
+			ptr = (Math.floor(x) + Math.floor(y) * this.width) * 4;
+			this.data[ptr] = (this.data[ptr] & bead.bmask) | bead.b, ptr ++;
+			this.data[ptr] = (this.data[ptr] & bead.gmask) | bead.g, ptr ++;
+			this.data[ptr] = (this.data[ptr] & bead.rmask) | bead.r, ptr ++;
+			this.data[ptr ++] = 0xFF;
+		}
+		i %= this.beadStyle.length;
+		x += dx,
+		y += dy;
+	}
+	this.beadStyle = this.beadStyle.substr(0, i) + this.beadStyle.substr(i);
+	this.lastX = Math.floor(x2),
+	this.lastY = Math.floor(y2);
+	return	this;
+}
+</script>
+
+<style>
+div#stats
+{
+	position	:fixed;
+	top		:0%;
+	right		:0;
+}
+</style>
+
+</head>
+
+<body>
+<canvas width=800px height=600px></canvas>
+
+<script>
+const	stats = new Stats();
+stats.setMode(0);
+
+// Так как для рисования всегда используется сам контекст.
+// Здесь мы сразу берём контекст, чтобы не плодить сущности
+const	hCanvas = document.querySelector("canvas").getContext("2d");
+// Но, если, в редких случаях, потребуется обратиться к самому Canvas-элементу,
+// это достигается через hCanvas.canvas...
+
+// Подготавливаем наш подконтекст
+const	pCanvas = hCanvas.lockImageData();
+
+// Задаём цвета нашего "бисера"
+pCanvas.beadStyle = "CMYK--CCMMMYYYYK---";
+
+// Чертим "бисерную" линию
+pCanvas
+.moveTo(128, 16)
+.beadsTo(192, 80)
+.beadsTo(128, 192)
+.beadsTo(64, 80)
+.beadsTo(128, 16);
+
+// Задаём цвета нашего "бисера"
+pCanvas.beadStyle = "XXXX--XXXXXXXXXX---";
+
+// Переносим м "бисерную" линию на "задний план"
+pCanvas.moveTo(128, 16).beadsTo(192, 80).beadsTo(128, 192).beadsTo(64, 80).beadsTo(128, 16);
+
+// Задаём цвета нашего "бисера"
+pCanvas.beadStyle = "RROOYYGGCCBBMM";
+
+// Чертим "бисерную" линию над "задним планом"
+pCanvas.moveTo(128, 16).beadsTo(192, 80).beadsTo(128, 192).beadsTo(64, 80).beadsTo(128, 16);
+
+var	user_x = pCanvas.width >> 1;
+var	user_y = pCanvas.height >> 1;
+var	tonnel = false;
+
+function Tonnel(x1, y1) {
+	var	x, y;
+	var	w = pCanvas.width - 1;
+	var	h = pCanvas.height - 1;
+
+	for(x = 0; x <= w; ++ x)
+		pCanvas
+		.moveTo(x, 0)
+		.lineTo(x1, y1)
+		.lineTo(w - x, h);
+
+	for(y = 0; y <= h; ++ y)
+		pCanvas
+		.moveTo(0, y)
+		.lineTo(x1, y1)
+		.lineTo(w, h - y);
+}
+
+hCanvas.canvas.addEventListener("mousemove"
+	,function(evt) {
+		evt = evt || window.event;
+		user_x = evt.offsetX;
+		user_y = evt.offsetY;
+		tonnel = true;
+	}
+);
+
+pCanvas.beadStyle = "X";
+
+function animate() {
+	requestAnimationFrame(animate);
+	stats.begin();
+	if(tonnel)
+		Tonnel(user_x, user_y);
+	// Переносим м "бисерную" линию на "задний план"
+	pCanvas.moveTo(128, 16)
+	.beadsTo(192, 80).beadsTo(128, 192).beadsTo(64, 80).beadsTo(128, 16)
+	.flush();
+	//
+	if(tonnel)
+		Tonnel(user_x, user_y);
+	stats.end();
+}
+
+document.body.appendChild(stats.domElement);
+
+animate();
+</script>
+</body>
